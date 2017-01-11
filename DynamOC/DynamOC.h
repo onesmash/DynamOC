@@ -16,4 +16,6 @@ FOUNDATION_EXPORT const unsigned char DynamOCVersionString[];
 
 // In this header, you should import all the public headers of your framework using statements like #import <DynamOC/PublicHeader.h>
 
+#import <DynamOC/NSObject+DynamOC.h>
+
 

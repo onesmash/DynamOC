@@ -8,12 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		035CCE411E25FAA200410BD9 /* DynamOC.h in Headers */ = {isa = PBXBuildFile; fileRef = 035CCE3F1E25FAA200410BD9 /* DynamOC.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		035CCE491E25FC6300410BD9 /* NSObject+DynamOC.h in Headers */ = {isa = PBXBuildFile; fileRef = 035CCE471E25FC6300410BD9 /* NSObject+DynamOC.h */; };
+		035CCE4A1E25FC6300410BD9 /* NSObject+DynamOC.m in Sources */ = {isa = PBXBuildFile; fileRef = 035CCE481E25FC6300410BD9 /* NSObject+DynamOC.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		035CCE3C1E25FAA200410BD9 /* DynamOC.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = DynamOC.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		035CCE3F1E25FAA200410BD9 /* DynamOC.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DynamOC.h; sourceTree = "<group>"; };
 		035CCE401E25FAA200410BD9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		035CCE471E25FC6300410BD9 /* NSObject+DynamOC.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSObject+DynamOC.h"; sourceTree = "<group>"; };
+		035CCE481E25FC6300410BD9 /* NSObject+DynamOC.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSObject+DynamOC.m"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,6 +52,8 @@
 			children = (
 				035CCE3F1E25FAA200410BD9 /* DynamOC.h */,
 				035CCE401E25FAA200410BD9 /* Info.plist */,
+				035CCE471E25FC6300410BD9 /* NSObject+DynamOC.h */,
+				035CCE481E25FC6300410BD9 /* NSObject+DynamOC.m */,
 			);
 			path = DynamOC;
 			sourceTree = "<group>";
@@ -59,6 +65,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				035CCE491E25FC6300410BD9 /* NSObject+DynamOC.h in Headers */,
 				035CCE411E25FAA200410BD9 /* DynamOC.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -132,6 +139,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				035CCE4A1E25FC6300410BD9 /* NSObject+DynamOC.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,6 +297,7 @@
 				035CCE461E25FAA200410BD9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
