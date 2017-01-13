@@ -7,17 +7,25 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0331544C1E2749370022436A /* LuaContext.h in Headers */ = {isa = PBXBuildFile; fileRef = 0331544A1E2749370022436A /* LuaContext.h */; };
+		0331544D1E2749370022436A /* LuaContext.m in Sources */ = {isa = PBXBuildFile; fileRef = 0331544B1E2749370022436A /* LuaContext.m */; };
 		035CCE411E25FAA200410BD9 /* DynamOC.h in Headers */ = {isa = PBXBuildFile; fileRef = 035CCE3F1E25FAA200410BD9 /* DynamOC.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		035CCE491E25FC6300410BD9 /* NSObject+DynamOC.h in Headers */ = {isa = PBXBuildFile; fileRef = 035CCE471E25FC6300410BD9 /* NSObject+DynamOC.h */; };
 		035CCE4A1E25FC6300410BD9 /* NSObject+DynamOC.m in Sources */ = {isa = PBXBuildFile; fileRef = 035CCE481E25FC6300410BD9 /* NSObject+DynamOC.m */; };
+		582891B99F4CFEF8ECB3E8A1 /* libPods-DynamOC.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DEEC3C8395702C37F9F76D8E /* libPods-DynamOC.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0331544A1E2749370022436A /* LuaContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LuaContext.h; sourceTree = "<group>"; };
+		0331544B1E2749370022436A /* LuaContext.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LuaContext.m; sourceTree = "<group>"; };
 		035CCE3C1E25FAA200410BD9 /* DynamOC.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = DynamOC.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		035CCE3F1E25FAA200410BD9 /* DynamOC.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DynamOC.h; sourceTree = "<group>"; };
 		035CCE401E25FAA200410BD9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		035CCE471E25FC6300410BD9 /* NSObject+DynamOC.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSObject+DynamOC.h"; sourceTree = "<group>"; };
 		035CCE481E25FC6300410BD9 /* NSObject+DynamOC.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSObject+DynamOC.m"; sourceTree = "<group>"; };
+		1172B72D913241F678A3A9E5 /* Pods-DynamOC.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DynamOC.release.xcconfig"; path = "Pods/Target Support Files/Pods-DynamOC/Pods-DynamOC.release.xcconfig"; sourceTree = "<group>"; };
+		5DE641D1234025FB01264803 /* Pods-DynamOC.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DynamOC.debug.xcconfig"; path = "Pods/Target Support Files/Pods-DynamOC/Pods-DynamOC.debug.xcconfig"; sourceTree = "<group>"; };
+		DEEC3C8395702C37F9F76D8E /* libPods-DynamOC.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-DynamOC.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -25,6 +33,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				582891B99F4CFEF8ECB3E8A1 /* libPods-DynamOC.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -36,6 +45,8 @@
 			children = (
 				035CCE3E1E25FAA200410BD9 /* DynamOC */,
 				035CCE3D1E25FAA200410BD9 /* Products */,
+				61D32C7A510B9BE19EC7D422 /* Pods */,
+				AF490A1CC583544DC0C52160 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -54,8 +65,27 @@
 				035CCE401E25FAA200410BD9 /* Info.plist */,
 				035CCE471E25FC6300410BD9 /* NSObject+DynamOC.h */,
 				035CCE481E25FC6300410BD9 /* NSObject+DynamOC.m */,
+				0331544A1E2749370022436A /* LuaContext.h */,
+				0331544B1E2749370022436A /* LuaContext.m */,
 			);
 			path = DynamOC;
+			sourceTree = "<group>";
+		};
+		61D32C7A510B9BE19EC7D422 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				5DE641D1234025FB01264803 /* Pods-DynamOC.debug.xcconfig */,
+				1172B72D913241F678A3A9E5 /* Pods-DynamOC.release.xcconfig */,
+			);
+			name = Pods;
+			sourceTree = "<group>";
+		};
+		AF490A1CC583544DC0C52160 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DEEC3C8395702C37F9F76D8E /* libPods-DynamOC.a */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -67,6 +97,7 @@
 			files = (
 				035CCE491E25FC6300410BD9 /* NSObject+DynamOC.h in Headers */,
 				035CCE411E25FAA200410BD9 /* DynamOC.h in Headers */,
+				0331544C1E2749370022436A /* LuaContext.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,10 +108,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 035CCE441E25FAA200410BD9 /* Build configuration list for PBXNativeTarget "DynamOC" */;
 			buildPhases = (
+				7D3A6FC87D526A2F7E6272AD /* [CP] Check Pods Manifest.lock */,
 				035CCE371E25FAA200410BD9 /* Sources */,
 				035CCE381E25FAA200410BD9 /* Frameworks */,
 				035CCE391E25FAA200410BD9 /* Headers */,
 				035CCE3A1E25FAA200410BD9 /* Resources */,
+				CC32A0876796AA171DD15B22 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -134,11 +167,45 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		7D3A6FC87D526A2F7E6272AD /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_ROOT}/../Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+		CC32A0876796AA171DD15B22 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-DynamOC/Pods-DynamOC-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		035CCE371E25FAA200410BD9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0331544D1E2749370022436A /* LuaContext.m in Sources */,
 				035CCE4A1E25FC6300410BD9 /* NSObject+DynamOC.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -244,6 +311,7 @@
 		};
 		035CCE451E25FAA200410BD9 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5DE641D1234025FB01264803 /* Pods-DynamOC.debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "";
 				DEFINES_MODULE = YES;
@@ -262,6 +330,7 @@
 		};
 		035CCE461E25FAA200410BD9 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1172B72D913241F678A3A9E5 /* Pods-DynamOC.release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "";
 				DEFINES_MODULE = YES;
