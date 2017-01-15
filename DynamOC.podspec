@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   #
 
   s.name         = "DynamOC"
-  s.version      = "0.0.2"
+  s.version      = "0.0.3"
   s.summary      = "A short description of DynamOC"
 
 
@@ -100,6 +100,10 @@ Pod::Spec.new do |s|
   # s.resource  = "icon.png"
   # s.resources = "Resources/*.png"
 
+  s.resource_bundles = {
+    'DynamOC' => ['third_party/runtime/runtime.lua']
+  }
+
   # s.preserve_paths = "FilesToSave", "MoreFilesToSave"
 
 
@@ -122,7 +126,7 @@ Pod::Spec.new do |s|
   #  where they will only apply to your library. If you depend on other Podspecs
   #  you can include multiple dependencies to ensure it works.
 
-  # s.requires_arc = true
+  s.requires_arc = true
 
   # s.xcconfig = { "HEADER_SEARCH_PATHS" => "$(SDKROOT)/usr/include/libxml2" }
   s.dependency "LuaJIT", "~> 0.1.5"
