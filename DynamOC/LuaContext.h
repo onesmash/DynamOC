@@ -10,10 +10,7 @@
 
 @interface LuaContext : NSObject
 
-@property (nonatomic, strong) id paramRegister;
-@property (nonatomic, strong) id returnValueRegister;
-
-- (BOOL)evaluateScript:(NSString *)script;
+@property (nonatomic, strong) id argumentRegister;
 
 @end
 
