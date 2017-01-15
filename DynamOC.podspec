@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   #
 
   s.name         = "DynamOC"
-  s.version      = "0.0.4"
+  s.version      = "0.0.5"
   s.summary      = "A short description of DynamOC"
 
 
@@ -72,7 +72,7 @@ Pod::Spec.new do |s|
   #  Supports git, hg, bzr, svn and HTTP.
   #
 
-  s.source       = { :git => "https://g.hz.netease.com/hzxuhui/DynamOC.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://g.hz.netease.com/hzxuhui/DynamOC.git", :tag => "#{s.version}", :submodules => true }
 
 
   # ――― Source Code ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
