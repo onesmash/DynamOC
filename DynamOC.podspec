@@ -113,10 +113,10 @@ Pod::Spec.new do |s|
   #  the lib prefix of their name.
   #
 
-  # s.framework  = "SomeFramework"
+  s.framework  = "LuaJIT"
   # s.frameworks = "SomeFramework", "AnotherFramework"
 
-  # s.library   = "iconv"
+  #s.library   = "luajit"
   # s.libraries = "iconv", "xml2"
 
 
@@ -129,6 +129,11 @@ Pod::Spec.new do |s|
   s.requires_arc = true
 
   # s.xcconfig = { "HEADER_SEARCH_PATHS" => "$(SDKROOT)/usr/include/libxml2" }
-  s.dependency "LuaJIT", "~> 0.1.5"
+  s.dependency "LuaJIT", "~> 0.1.7"
+
+  s.pod_target_xcconfig = {
+        'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/LuaJIT/lib',
+        'FRAMEWORK_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/LuaJIT/'
+  }
 
 end
