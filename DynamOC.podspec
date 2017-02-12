@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   #
 
   s.name         = "DynamOC"
-  s.version      = "0.0.5"
+  s.version      = "0.0.6"
   s.summary      = "A short description of DynamOC"
 
 
@@ -132,8 +132,7 @@ Pod::Spec.new do |s|
   s.dependency "LuaJIT", "~> 0.1.8"
 
   s.pod_target_xcconfig = {
-        'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/LuaJIT/lib',
-        'FRAMEWORK_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/LuaJIT/'
+        'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/LuaJIT/lib'
   }
 
 end
