@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   #
 
   s.name         = "DynamOC"
-  s.version      = "0.0.6"
+  s.version      = "0.0.7"
   s.summary      = "A short description of DynamOC"
 
 
@@ -101,7 +101,7 @@ Pod::Spec.new do |s|
   # s.resources = "Resources/*.png"
 
   s.resource_bundles = {
-    'DynamOC' => ['third_party/runtime/runtime.lua']
+    'DynamOC' => ['DynamOC/runtime.lua']
   }
 
   # s.preserve_paths = "FilesToSave", "MoreFilesToSave"
