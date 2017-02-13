@@ -12,6 +12,8 @@
 
 @property (nonatomic, strong) id argumentRegister;
 
++ (NSBundle *)dynamOCBundle;
+
 @end
 
 void forward_invocation(id target, SEL selector, id invocation);

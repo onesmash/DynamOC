@@ -8,7 +8,7 @@
 
 #import "LuaContext.h"
 #import "NSObject+DynamOC.h"
-#import <lua.h>
+#include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
 
@@ -21,6 +21,13 @@
 @end
 
 @implementation LuaContext
+
++ (NSBundle *)dynamOCBundle
+{
+    NSBundle *superBundle = [NSBundle bundleForClass:[LuaContext class]];
+    NSURL *bundleURL = [superBundle URLForResource:@"DynamOC" withExtension:@"bundle"];
+    return [NSBundle bundleWithURL:bundleURL];
+}
 
 - (instancetype)init
 {
