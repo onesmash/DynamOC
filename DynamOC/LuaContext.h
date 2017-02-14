@@ -13,6 +13,7 @@
 @property (nonatomic, strong) id argumentRegister;
 
 + (NSBundle *)dynamOCBundle;
++ (LuaContext *)currentContext;
 
 @end
 

@@ -29,6 +29,16 @@
     return [NSBundle bundleWithURL:bundleURL];
 }
 
++ (LuaContext *)currentContext
+{
+    LuaContext *context = [[NSThread currentThread].threadDictionary objectForKey:kThreadLocalLuaContextKey];
+    if(!context) {
+        context = [[LuaContext alloc] init];
+        [[NSThread currentThread].threadDictionary setObject:context forKey:kThreadLocalLuaContextKey];
+    }
+    return context;
+}
+
 - (instancetype)init
 {
     self = [super init];
@@ -36,6 +46,17 @@
         _L = luaL_newstate();
         if(_L) {
             luaL_openlibs(_L );
+            NSString *scriptDirectory = [[LuaContext dynamOCBundle] resourcePath];
+            lua_pushstring(_L, scriptDirectory.UTF8String);
+            lua_setfield(_L, -2, "__scriptDirectory");
+            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot" ofType:@"lua"];
+            lua_getglobal(_L, "debug");
+            lua_getfield(_L, -1, "traceback");
+            if (luaL_loadfile(_L,  bootFilePath.UTF8String) == 0) {
+                if(lua_pcall(_L, 0, 0, -2)) {
+                    NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
+                }
+            }
         }
     }
     return self;
@@ -75,11 +96,6 @@ void forward_invocation(NSObject *target, SEL selector, id invocation)
 id get_luacontext()
 {
     @autoreleasepool {
-        LuaContext *context = [[NSThread currentThread].threadDictionary objectForKey:kThreadLocalLuaContextKey];
-        if(!context) {
-            context = [[LuaContext alloc] init];
-            [[NSThread currentThread].threadDictionary setObject:context forKey:kThreadLocalLuaContextKey];
-        }
-        return context;
+        return [LuaContext currentContext];
     }
 }
