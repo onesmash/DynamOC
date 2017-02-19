@@ -96,31 +96,34 @@ id get_luacontext();
 ]]
 
 local C = ffi.C
+objc.C = C
 
-function objc.evaluate(code)
+function objc.evaluate(codeData, len)
     local context = C.get_luacontext()
-    local invocation = context.argumentRegister
-    local methodSignature = invocation.methodSignature
-    local numberOfArguments = signature.numberOfArguments
-    local arguments = {invocation.atrget, invocation.selector}
+    local invocation = context:argumentRegister()
+    local methodSignature = invocation:methodSignature()
+    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
+    local arguments = {invocation:target(), invocation:selector()}
     for i = 2, numberOfArguments - 1 do
         local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
         local typeArr = objc.parseTypeEncoding(argumentType)
         if typeArr ~= nil and #typeArr == 1 then
-            local cType = objc.typeToCType(typeArr[1].."[1]")
+            local cType = objc.typeToCType(typeArr[1])
             if cType ~= nil then
-                local arg = cType()
+                cType = cType .. "[1]";
+                local arg = ffi.new(cType)
                 invocation:getArgument_atIndex_(arg, i)
-                table.insert(arguments, arg)
+                table.insert(arguments, arg[0])
             end
         end
     end
-    local returnType = ffi.string(methodSignature.methodReturnType)
+    local returnType = ffi.string(methodSignature:methodReturnType())
     local typeArr = objc.parseTypeEncoding(returnType)
     if typeArr ~= nil and #typeArr == 1 then
-        local cType = objc.typeToCType(typeArr[1].."[1]")
+        local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
-            local ret = cType({loadstring(code)(unpack(arguments))})
+            cType = cType .. "[1]"
+            local ret = ffi.new(cType, {loadstring(ffi.string(codeData, len))(unpack(arguments))})
             invocation:setReturnValue_(ret)
         end
     end
@@ -195,10 +198,11 @@ local _INT_MAX
 if ffi.abi("64bit") then
     _UINT_MAX = 18446744073709551615ULL
     _INT_MAX = 9223372036854775807LL
-else 
-    _UINT_MAX = 4294967295U
+else
+    _UINT_MAX = 4294967295
     _INT_MAX = 2147483647
 end
+
 
 -- Parses an ObjC type encoding string into an array of type dictionaries
 function objc.parseTypeEncoding(str)
@@ -690,18 +694,19 @@ end
 function objc.addMethod(class, selector, lambda, typeEncoding)
     local msgForwardIMP = C._objc_msgForward
     if jit.arch ~= "arm64" then
-        string.sub(typeEncoding, 1, 1) == "{"
-        local signature = objc.impSignatureForTypeEncoding(typeEncoding)
-        local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
-        if range.location ~= _INT_MAX then
-            msgForwardIMP = C._objc_msgForward_stret
+        if string.sub(typeEncoding, 1, 1) == "{" then
+            local signature = objc.impSignatureForTypeEncoding(typeEncoding)
+            local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
+            if range.location ~= _INT_MAX then
+                msgForwardIMP = C._objc_msgForward_stret
+            end
         end
     end
 
     local forwardInvocationSel = objc.SEL("forwardInvocation:")
     local renamedForwardInvocationSel = objc.SEL("__forwardInvocation:")
-    if C.class_getMethodImplementation(class, forwardInvocationSel) ~= C.forward_invocation then
-        if C.class_addMethod(class, renamedForwardInvocationSel, C.forward_invocation, objc.NSStr("v@:@")) == true then
+    if C.class_getMethodImplementation(class, forwardInvocationSel) ~= ffi.cast("IMP", C.forward_invocation) then
+        if C.class_addMethod(class, renamedForwardInvocationSel, ffi.cast("IMP", C.forward_invocation), "v@:@") == 1 then
             objc.swizzle(class, forwardInvocationSel, renamedForwardInvocationSel)
         else 
             error("Couldn't replace forwardInvocation:")
@@ -718,8 +723,9 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     end
 
     -- TODO 序列化lambda
-    
-    class:__setLuaLambda_forKey_(string.dump(lambda), objc.selToStr(selector))
+    local code = string.dump(lambda)
+    local data = objc.NSData:dataWithBytes_length_(ffi.cast("void *", code), string.len(code))
+    class:__setLuaLambda_forKey_(data, objc.Obj(objc.selToStr(selector)))
 
     C.class_replaceMethod(class, selector, msgForwardIMP, typeEncoding)
     -- typeEncoding = typeEncoding or "v@:"

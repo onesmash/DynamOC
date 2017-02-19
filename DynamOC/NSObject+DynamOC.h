@@ -11,6 +11,6 @@
 @interface NSObject (DynamOC)
 
 + (NSMutableDictionary *)__luaLambdas;
-+ (void)__setLuaLambda:(NSString *)lambda forKey:(NSString *)selector;
++ (void)__setLuaLambda:(NSData *)lambda forKey:(NSString *)selector;
 
 @end

@@ -24,7 +24,7 @@ static char kLuaLambdasKey;
     return lambdas;
 }
 
-+ (void)__setLuaLambda:(NSString *)lambda forKey:(NSString *)selector
++ (void)__setLuaLambda:(NSData *)lambda forKey:(NSString *)selector
 {
     NSMutableDictionary *lambdas = self.__luaLambdas;
     [lambdas setObject:lambda forKey:selector];

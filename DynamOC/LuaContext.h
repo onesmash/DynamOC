@@ -15,6 +15,8 @@
 + (NSBundle *)dynamOCBundle;
 + (LuaContext *)currentContext;
 
+- (BOOL)evaluateScript:(NSString *)code;
+
 @end
 
 void forward_invocation(id target, SEL selector, id invocation);
