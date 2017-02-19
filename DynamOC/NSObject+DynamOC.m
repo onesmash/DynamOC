@@ -26,6 +26,7 @@ static char kLuaLambdasKey;
 
 + (void)__setLuaLambda:(NSData *)lambda forKey:(NSString *)selector
 {
+    NSAssert([NSThread isMainThread], @"Add lua method must in main thread!");
     NSMutableDictionary *lambdas = self.__luaLambdas;
     [lambdas setObject:lambda forKey:selector];
 }
