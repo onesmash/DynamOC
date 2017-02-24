@@ -86,7 +86,7 @@ Pod::Spec.new do |s|
   s.source_files  = "DynamOC", "DynamOC/**/*.{h,m}"
   s.exclude_files = "DynamOC/DynamOC.h"
 
-  s.public_header_files = "DynamOC/LuaContext.h", "DynamOC/NSObject+DynamOC.h"
+  s.public_header_files = "DynamOC/LuaContext.h", "DynamOC/NSObject+DynamOC.h" , "DynamOC/DynamBlock.h"
 
 
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
