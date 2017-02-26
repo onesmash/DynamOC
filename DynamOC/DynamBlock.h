@@ -11,22 +11,20 @@
 struct BlockDescriptor {
     uintptr_t reserved;         // NULL
     uintptr_t size;         // sizeof(struct Block_literal_1)
-    // optional helper functions
-    void (*copy_helper)(void *dst, void *src);     // IFF (1<<25)
-    void (*dispose_helper)(void *src);             // IFF (1<<25)
     // required ABI.2010.3.16
     const char *signature;                         // IFF (1<<30)
 };
 
-@interface DynamBlock : NSObject {
+@interface DynamBlock : NSObject <NSCopying> {
     int flags;
     int reserved;
     void (*invoke)(void *, ...);
     struct BlockDescriptor *descriptor;
 }
 
+@property (nonatomic, assign) NSInteger blockID;
+@property (nonatomic, copy) NSString *signature;
+
 - (instancetype)initWithBlock:(id)block;
-
-- (NSString *)signature;
-
+- (instancetype)initWithBlockID:(NSInteger)callId signature:(NSString *)sig;
 @end

@@ -93,12 +93,44 @@ int access(const char *path, int amode);
 
 void forward_invocation(id target, SEL selector, id invocation);
 id get_luacontext();
+id create_block(NSInteger callId, const char* signature);
 ]]
 
 local C = ffi.C
 objc.C = C
 
-function objc.evaluate(codeData, len)
+function objc.evaluateBlock(lambda)
+    local context = C.get_luacontext()
+    local invocation = context:argumentRegister()
+    local methodSignature = invocation:methodSignature()
+    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
+    local arguments = {}
+    for i = 1, numberOfArguments - 1 do
+        local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
+        local typeArr = objc.parseTypeEncoding(argumentType)
+        if typeArr ~= nil and #typeArr == 1 then
+            local cType = objc.typeToCType(typeArr[1])
+            if cType ~= nil then
+                cType = cType .. "[1]";
+                local arg = ffi.new(cType)
+                invocation:getArgument_atIndex_(arg, i)
+                table.insert(arguments, arg[0])
+            end
+        end
+    end
+    local returnType = ffi.string(methodSignature:methodReturnType())
+    local typeArr = objc.parseTypeEncoding(returnType)
+    if typeArr ~= nil and #typeArr == 1 then
+        local cType = objc.typeToCType(typeArr[1])
+        if cType ~= nil then
+            cType = cType .. "[1]"
+            local ret = ffi.new(cType, {lambda(unpack(arguments))})
+            invocation:setReturnValue_(ret)
+        end
+    end
+end
+
+function objc.evaluateMethod(codeData, len)
     local context = C.get_luacontext()
     local invocation = context:argumentRegister()
     local methodSignature = invocation:methodSignature()
@@ -789,6 +821,11 @@ function objc.setIvar(instance, ivarName, value)
     end
     local ptr = ffi.cast(cType.."*", instance+offset)
     ptr[0] = value
+end
+
+function objc.createBlock(lambda, typeEncoding)
+    local id = objc.registerLambda(lambda)
+    return C.create_block(id, typeEncoding)
 end
 
 return objc;

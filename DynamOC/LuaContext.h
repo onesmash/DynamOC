@@ -19,6 +19,11 @@
 
 @end
 
+@class DynamBlock;
+
 void forward_invocation(id target, SEL selector, id invocation);
+void forward_block_invocation(NSInteger blockID, id invocation);
 id get_luacontext();
+DynamBlock *create_block(NSInteger blockID, const char* signature);
+void free_block(NSInteger blockID);
 

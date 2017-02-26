@@ -8,15 +8,26 @@
 
 #import "LuaContext.h"
 #import "NSObject+DynamOC.h"
+#import "DynamBlock.h"
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
 
 #define kThreadLocalLuaContextKey @"kThreadLocalLuaContextKey"
 
+static int register_lambda(lua_State *L)
+{
+    lua_pushvalue(L, -1);
+    int closureId = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pushinteger(L, closureId);
+    return 1;
+}
+
 @interface LuaContext () {
     lua_State *_L;
 }
+
+@property (nonatomic, weak) NSThread *thread;
 
 @end
 
@@ -43,6 +54,7 @@
 {
     self = [super init];
     if(self) {
+        self.thread = [NSThread currentThread];
         _L = luaL_newstate();
         if(_L) {
             luaL_openlibs(_L );
@@ -60,6 +72,10 @@
                         lua_pop(_L, 2);
                         break;
                     }
+                    lua_pop(_L, 1);
+                    lua_getglobal(_L, "runtime");
+                    lua_pushcfunction(_L, register_lambda);
+                    lua_setfield(_L, -2, "registerLambda");
                     lua_pop(_L, 1);
                     break;
                 }
@@ -89,17 +105,16 @@
     return NO;
 }
 
-- (BOOL)forwardEvaluation:(NSData *)script
+- (BOOL)forwardMethodInvocation:(NSData *)script
 {
     lua_getglobal(_L, "debug");
     lua_getfield(_L, -1, "traceback");
     lua_replace(_L, -2);
     lua_getglobal(_L, "runtime");
-    lua_getfield(_L, -1, "evaluate");
+    lua_getfield(_L, -1, "evaluateMethod");
     lua_replace(_L, -2);
     lua_pushlightuserdata(_L, script.bytes);
     lua_pushnumber(_L, script.length);
-    BOOL ret = YES;
     if(lua_pcall(_L, 2, 0, -4)) {
         NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
         lua_pop(_L, 2);
@@ -107,6 +122,29 @@
     }
     lua_pop(_L, 1);
     return YES;
+}
+
+- (BOOL)forwardBlockInvocation:(NSInteger)callId
+{
+    lua_getglobal(_L, "debug");
+    lua_getfield(_L, -1, "traceback");
+    lua_replace(_L, -2);
+    lua_getglobal(_L, "runtime");
+    lua_getfield(_L, -1, "evaluateBlock");
+    lua_replace(_L, -2);
+    lua_rawgeti(_L, LUA_REGISTRYINDEX, callId);
+    if(lua_pcall(_L, 1, 0, -3)) {
+        NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
+        lua_pop(_L, 2);
+        return NO;
+    }
+    lua_pop(_L, 1);
+    return YES;
+}
+
+- (void)freeLuaBlock:(NSInteger)blockID
+{
+    lua_unref(_L, blockID);
 }
 
 @end
@@ -118,15 +156,38 @@ void forward_invocation(NSObject *target, SEL selector, NSInvocation *invocation
     NSData *luaCodeData = [[target.class __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(invocation.selector)]];
     SEL sel = NSSelectorFromString(@"__forwardInvocation:");
     if(luaCodeData) {
-        [context forwardEvaluation:luaCodeData];
+        [context forwardMethodInvocation:luaCodeData];
     } else if([target respondsToSelector:sel]) {
         [target performSelector:sel withObject:invocation];
     }
+}
+
+void forward_block_invocation(NSInteger callId, id invocation)
+{
+    LuaContext *context = get_luacontext();
+    context.argumentRegister = invocation;
+    [context forwardBlockInvocation:callId];
 }
 
 id get_luacontext()
 {
     @autoreleasepool {
         return [LuaContext currentContext];
+    }
+}
+
+DynamBlock *create_block(NSInteger blockID, const char* signature)
+{
+    @autoreleasepool {
+        DynamBlock *block = [[DynamBlock alloc] initWithBlockID:blockID signature:[NSString stringWithUTF8String:signature]];
+        return block;
+    }
+}
+
+void free_block(NSInteger blockID)
+{
+    @autoreleasepool {
+        LuaContext *context = get_luacontext();
+        [context freeLuaBlock:blockID];
     }
 }
