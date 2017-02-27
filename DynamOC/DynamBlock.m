@@ -53,6 +53,8 @@ static const char *get_block_signature(id b)
 
 @property (nonatomic, weak) NSThread *thread;
 @property (nonatomic, assign) BOOL copyed;
+@property (nonatomic, strong) NSData *codeDump;
+@property (nonatomic, strong) NSArray *upvalueDump;
 
 @end
 
@@ -62,6 +64,7 @@ static const char *get_block_signature(id b)
 {
     self = [self init];
     if(self) {
+        self.thread = [NSThread currentThread];
         self.copyed = NO;
         self.blockID = blockID;
         self.signature = sig;
@@ -152,7 +155,29 @@ static const char *get_block_signature(id b)
     DynamBlock *block = [DynamBlock allocWithZone:zone];
     block.copyed = YES;
     block.signature = self.signature;
+    if(self.copyed) {
+        block.codeDump = self.codeDump;
+        block.upvalueDump = self.upvalueDump;
+    } else {
+        [self performSelector:@selector(dumpBlockTo:) onThread:self.thread withObject:block waitUntilDone:YES];
+    }
     return block;
+}
+
+- (void)dumpBlockTo:(DynamBlock *)block
+{
+    block.codeDump = [self dumpCode];
+    block.upvalueDump = [self dumpUpvalue];
+}
+
+- (NSData *)dumpCode
+{
+    return dump_block_code(self.blockID);
+}
+
+- (NSArray *)dumpUpvalue
+{
+    return dump_block_upvalue(self.blockID);
 }
 
 @end

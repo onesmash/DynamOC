@@ -13,6 +13,18 @@ local objc = {
     }
 }
 
+objc.ffi = ffi
+
+local function _log(...)
+    if objc.debug == true then
+        local args = {...}
+        for i=1, #args do
+            args[i] = tostring(args[i])
+        end
+        io.stderr:write("[objc] "..table.concat(args, " ").."\n")
+    end
+end
+
 if ffi.abi("64bit") then
     ffi.cdef([[
     typedef double CGFloat;

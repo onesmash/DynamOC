@@ -26,4 +26,6 @@ void forward_block_invocation(NSInteger blockID, id invocation);
 id get_luacontext();
 DynamBlock *create_block(NSInteger blockID, const char* signature);
 void free_block(NSInteger blockID);
+NSData *dump_block_code(NSInteger blockID);
+NSArray *dump_block_upvalue(NSInteger blockID);
 

@@ -15,6 +15,11 @@
 
 #define kThreadLocalLuaContextKey @"kThreadLocalLuaContextKey"
 
+static int buf_writer( lua_State *L, const void* b, size_t n, void *B ) {
+    luaL_addlstring((luaL_Buffer *)B, (const char *)b, n);
+    return 0;
+}
+
 static int register_lambda(lua_State *L)
 {
     lua_pushvalue(L, -1);
@@ -124,7 +129,7 @@ static int register_lambda(lua_State *L)
     return YES;
 }
 
-- (BOOL)forwardBlockInvocation:(NSInteger)callId
+- (BOOL)forwardBlockInvocation:(NSInteger)blockID
 {
     lua_getglobal(_L, "debug");
     lua_getfield(_L, -1, "traceback");
@@ -132,7 +137,7 @@ static int register_lambda(lua_State *L)
     lua_getglobal(_L, "runtime");
     lua_getfield(_L, -1, "evaluateBlock");
     lua_replace(_L, -2);
-    lua_rawgeti(_L, LUA_REGISTRYINDEX, callId);
+    lua_rawgeti(_L, LUA_REGISTRYINDEX, blockID);
     if(lua_pcall(_L, 1, 0, -3)) {
         NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
         lua_pop(_L, 2);
@@ -145,6 +150,25 @@ static int register_lambda(lua_State *L)
 - (void)freeLuaBlock:(NSInteger)blockID
 {
     lua_unref(_L, blockID);
+}
+
+- (NSData *)dumpLuaBlockCode:(NSInteger)blockID
+{
+    lua_rawgeti(_L, LUA_REGISTRYINDEX, blockID);
+    luaL_Buffer b;
+    luaL_buffinit(_L, &b);
+    lua_dump(_L, buf_writer, &b);
+    luaL_pushresult(&b);
+    size_t size;
+    const char *code = lua_tolstring(_L, -1, &size);
+    NSData *data = [NSData dataWithBytes:code length:size];
+    lua_pop(_L, 2);
+    return data;
+}
+
+- (NSArray *)dumpLuaBlockUpvalue:(NSInteger)blockID
+{
+    
 }
 
 @end
@@ -189,5 +213,21 @@ void free_block(NSInteger blockID)
     @autoreleasepool {
         LuaContext *context = get_luacontext();
         [context freeLuaBlock:blockID];
+    }
+}
+
+NSData *dump_block_code(NSInteger blockID)
+{
+    @autoreleasepool {
+        LuaContext *context = get_luacontext();
+        return [context dumpLuaBlockCode:blockID];
+    }
+}
+
+NSArray *dump_block_upvalue(NSInteger blockID)
+{
+    @autoreleasepool {
+        LuaContext *context = get_luacontext();
+        return [context dumpLuaBlockUpvalue:blockID];
     }
 }
