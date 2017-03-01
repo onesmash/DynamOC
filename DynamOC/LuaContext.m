@@ -129,7 +129,7 @@ static int register_lambda(lua_State *L)
     return YES;
 }
 
-- (BOOL)forwardBlockInvocation:(NSInteger)blockID
+- (BOOL)forwardBlockIDInvocation:(NSInteger)blockID
 {
     lua_getglobal(_L, "debug");
     lua_getfield(_L, -1, "traceback");
@@ -139,6 +139,25 @@ static int register_lambda(lua_State *L)
     lua_replace(_L, -2);
     lua_rawgeti(_L, LUA_REGISTRYINDEX, blockID);
     if(lua_pcall(_L, 1, 0, -3)) {
+        NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
+        lua_pop(_L, 2);
+        return NO;
+    }
+    lua_pop(_L, 1);
+    return YES;
+}
+
+- (BOOL)forwardBlockCodeInvocation:(NSData *)code
+{
+    lua_getglobal(_L, "debug");
+    lua_getfield(_L, -1, "traceback");
+    lua_replace(_L, -2);
+    lua_getglobal(_L, "runtime");
+    lua_getfield(_L, -1, "evaluateBlockCode");
+    lua_replace(_L, -2);
+    lua_pushlightuserdata(_L, code.bytes);
+    lua_pushnumber(_L, code.length);
+    if(lua_pcall(_L, 2, 0, -4)) {
         NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
         lua_pop(_L, 2);
         return NO;
@@ -168,29 +187,55 @@ static int register_lambda(lua_State *L)
 
 - (NSArray *)dumpLuaBlockUpvalue:(NSInteger)blockID
 {
-    
+    lua_getglobal(_L, "debug");
+    lua_getfield(_L, -1, "traceback");
+    lua_replace(_L, -2);
+    lua_getglobal(_L, "runtime");
+    lua_getfield(_L, -1, "dumpBlockUpvalues");
+    lua_replace(_L, -2);
+    lua_rawgeti(_L, LUA_REGISTRYINDEX, blockID);
+    if(lua_pcall(_L, 1, 0, -3)) {
+        NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
+        lua_pop(_L, 2);
+        return nil;
+    }
+    lua_pop(_L, 1);
+    return self.returnRegister;
 }
 
 @end
 
 void forward_invocation(NSObject *target, SEL selector, NSInvocation *invocation)
 {
-    LuaContext *context = get_luacontext();
-    context.argumentRegister = invocation;
-    NSData *luaCodeData = [[target.class __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(invocation.selector)]];
-    SEL sel = NSSelectorFromString(@"__forwardInvocation:");
-    if(luaCodeData) {
-        [context forwardMethodInvocation:luaCodeData];
-    } else if([target respondsToSelector:sel]) {
-        [target performSelector:sel withObject:invocation];
+    @autoreleasepool {
+        LuaContext *context = get_luacontext();
+        context.argumentRegister = invocation;
+        NSData *luaCodeData = [[target.class __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(invocation.selector)]];
+        SEL sel = NSSelectorFromString(@"__forwardInvocation:");
+        if(luaCodeData) {
+            [context forwardMethodInvocation:luaCodeData];
+        } else if([target respondsToSelector:sel]) {
+            [target performSelector:sel withObject:invocation];
+        }
     }
 }
 
-void forward_block_invocation(NSInteger callId, id invocation)
+void forward_block_id_invocation(NSInteger callId, id invocation)
 {
-    LuaContext *context = get_luacontext();
-    context.argumentRegister = invocation;
-    [context forwardBlockInvocation:callId];
+    @autoreleasepool {
+        LuaContext *context = get_luacontext();
+        context.argumentRegister = invocation;
+        [context forwardBlockIDInvocation:callId];
+    }
+}
+
+void forward_block_code_invocation(NSData *code, NSArray<BlockUpvalue *> *upvalues, id invocation)
+{
+    @autoreleasepool {
+        LuaContext *context = get_luacontext();
+        context.argumentRegister = @[upvalues, invocation];
+        [context forwardBlockCodeInvocation:code];
+    }
 }
 
 id get_luacontext()
@@ -224,10 +269,11 @@ NSData *dump_block_code(NSInteger blockID)
     }
 }
 
-NSArray *dump_block_upvalue(NSInteger blockID)
+NSArray<BlockUpvalue *> *dump_block_upvalue(NSInteger blockID)
 {
     @autoreleasepool {
         LuaContext *context = get_luacontext();
+        context.returnRegister = [NSMutableArray array];
         return [context dumpLuaBlockUpvalue:blockID];
     }
 }

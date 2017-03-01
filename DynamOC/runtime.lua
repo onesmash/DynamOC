@@ -111,68 +111,6 @@ id create_block(NSInteger callId, const char* signature);
 local C = ffi.C
 objc.C = C
 
-function objc.evaluateBlock(lambda)
-    local context = C.get_luacontext()
-    local invocation = context:argumentRegister()
-    local methodSignature = invocation:methodSignature()
-    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
-    local arguments = {}
-    for i = 1, numberOfArguments - 1 do
-        local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
-        local typeArr = objc.parseTypeEncoding(argumentType)
-        if typeArr ~= nil and #typeArr == 1 then
-            local cType = objc.typeToCType(typeArr[1])
-            if cType ~= nil then
-                cType = cType .. "[1]";
-                local arg = ffi.new(cType)
-                invocation:getArgument_atIndex_(arg, i)
-                table.insert(arguments, arg[0])
-            end
-        end
-    end
-    local returnType = ffi.string(methodSignature:methodReturnType())
-    local typeArr = objc.parseTypeEncoding(returnType)
-    if typeArr ~= nil and #typeArr == 1 then
-        local cType = objc.typeToCType(typeArr[1])
-        if cType ~= nil then
-            cType = cType .. "[1]"
-            local ret = ffi.new(cType, {lambda(unpack(arguments))})
-            invocation:setReturnValue_(ret)
-        end
-    end
-end
-
-function objc.evaluateMethod(codeData, len)
-    local context = C.get_luacontext()
-    local invocation = context:argumentRegister()
-    local methodSignature = invocation:methodSignature()
-    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
-    local arguments = {invocation:target(), invocation:selector()}
-    for i = 2, numberOfArguments - 1 do
-        local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
-        local typeArr = objc.parseTypeEncoding(argumentType)
-        if typeArr ~= nil and #typeArr == 1 then
-            local cType = objc.typeToCType(typeArr[1])
-            if cType ~= nil then
-                cType = cType .. "[1]";
-                local arg = ffi.new(cType)
-                invocation:getArgument_atIndex_(arg, i)
-                table.insert(arguments, arg[0])
-            end
-        end
-    end
-    local returnType = ffi.string(methodSignature:methodReturnType())
-    local typeArr = objc.parseTypeEncoding(returnType)
-    if typeArr ~= nil and #typeArr == 1 then
-        local cType = objc.typeToCType(typeArr[1])
-        if cType ~= nil then
-            cType = cType .. "[1]"
-            local ret = ffi.new(cType, {loadstring(ffi.string(codeData, len))(unpack(arguments))})
-            invocation:setReturnValue_(ret)
-        end
-    end
-end
-
 function objc.loadFramework(name, absolute)
     local canRead = bit.lshift(1,2)
     -- Check if it's an absolute path
@@ -835,9 +773,149 @@ function objc.setIvar(instance, ivarName, value)
     ptr[0] = value
 end
 
+function objc.weak(obj)
+    if type(obj) == "cdata" and ffi.istype(_idType, obj) then
+        return objc.WeakObject:alloc():initWithObject(obj)
+    else
+        return obj
+    end
+end
+
+function objc.strong(obj)
+    if type(obj) == "cdata" and ffi.istype(_idType, obj) then
+        if obj:isKindOfClass(objc.WeakObject) then
+            return obj:object()
+        end
+    else
+        return obj
+    end
+end
+
 function objc.createBlock(lambda, typeEncoding)
     local id = objc.registerLambda(lambda)
-    return C.create_block(id, typeEncoding)
+    local block = objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
+    -- block:retain()
+    -- ffi.gc(block, _release)
+    return block
+end
+
+function objc.dumpBlockUpvalues(lambda)
+    local context = C.get_luacontext()
+    local upvalues = context:returnRegister()
+    local i = 1
+    while true do
+        local name, value = debug.getupvalue(lambda, i)
+        if not name then
+            break
+        end
+        if type(value) == "cdata" and ffi.istype(_idType, value) then
+            local upvalue = objc.BlockUpvalue:alloc():init()
+            upvalue:setIndex(i)
+            upvalue:setName(objc.Obj(name))
+            upvalue:setValue(value)
+            upvalues:addObject(upvalue)
+        end
+        i = i + 1
+    end
+end
+
+function objc.evaluateBlock(lambda)
+    local context = C.get_luacontext()
+    local invocation = context:argumentRegister()
+    local methodSignature = invocation:methodSignature()
+    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
+    local arguments = {}
+    for i = 1, numberOfArguments - 1 do
+        local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
+        local typeArr = objc.parseTypeEncoding(argumentType)
+        if typeArr ~= nil and #typeArr == 1 then
+            local cType = objc.typeToCType(typeArr[1])
+            if cType ~= nil then
+                cType = cType .. "[1]";
+                local arg = ffi.new(cType)
+                invocation:getArgument_atIndex_(arg, i)
+                table.insert(arguments, arg[0])
+            end
+        end
+    end
+    local returnType = ffi.string(methodSignature:methodReturnType())
+    local typeArr = objc.parseTypeEncoding(returnType)
+    if typeArr ~= nil and #typeArr == 1 then
+        local cType = objc.typeToCType(typeArr[1])
+        if cType ~= nil then
+            cType = cType .. "[1]"
+            local ret = ffi.new(cType, {lambda(unpack(arguments))})
+            invocation:setReturnValue_(ret)
+        end
+    end
+end
+
+function objc.evaluateBlockCode(codeData, len)
+    local context = C.get_luacontext()
+    local upvalues = context:argumentRegister():objectAtIndex(0)
+    local invocation = context:argumentRegister():objectAtIndex(1)
+    local methodSignature = invocation:methodSignature()
+    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
+    local arguments = {}
+    for i = 1, numberOfArguments - 1 do
+        local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
+        local typeArr = objc.parseTypeEncoding(argumentType)
+        if typeArr ~= nil and #typeArr == 1 then
+            local cType = objc.typeToCType(typeArr[1])
+            if cType ~= nil then
+                cType = cType .. "[1]";
+                local arg = ffi.new(cType)
+                invocation:getArgument_atIndex_(arg, i)
+                table.insert(arguments, arg[0])
+            end
+        end
+    end
+    local returnType = ffi.string(methodSignature:methodReturnType())
+    local typeArr = objc.parseTypeEncoding(returnType)
+    if typeArr ~= nil and #typeArr == 1 then
+        local cType = objc.typeToCType(typeArr[1])
+        if cType ~= nil then
+            cType = cType .. "[1]"
+            local lambda = loadstring(ffi.string(codeData, len))
+            for i = 0, tonumber(upvalues:count()) - 1 do
+                local upvalue = upvalues:objectAtIndex(i)
+                debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value())
+            end
+            local ret = ffi.new(cType, {lambda(unpack(arguments))})
+            invocation:setReturnValue_(ret)
+        end
+    end
+end
+
+function objc.evaluateMethod(codeData, len)
+    local context = C.get_luacontext()
+    local invocation = context:argumentRegister()
+    local methodSignature = invocation:methodSignature()
+    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
+    local arguments = {invocation:target(), invocation:selector()}
+    for i = 2, numberOfArguments - 1 do
+        local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
+        local typeArr = objc.parseTypeEncoding(argumentType)
+        if typeArr ~= nil and #typeArr == 1 then
+            local cType = objc.typeToCType(typeArr[1])
+            if cType ~= nil then
+                cType = cType .. "[1]";
+                local arg = ffi.new(cType)
+                invocation:getArgument_atIndex_(arg, i)
+                table.insert(arguments, arg[0])
+            end
+        end
+    end
+    local returnType = ffi.string(methodSignature:methodReturnType())
+    local typeArr = objc.parseTypeEncoding(returnType)
+    if typeArr ~= nil and #typeArr == 1 then
+        local cType = objc.typeToCType(typeArr[1])
+        if cType ~= nil then
+            cType = cType .. "[1]"
+            local ret = ffi.new(cType, {loadstring(ffi.string(codeData, len))(unpack(arguments))})
+            invocation:setReturnValue_(ret)
+        end
+    end
 end
 
 return objc;

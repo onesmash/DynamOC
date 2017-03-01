@@ -60,13 +60,12 @@ static const char *get_block_signature(id b)
 
 @implementation DynamBlock
 
-- (instancetype)initWithBlockID:(NSInteger)blockID signature:(NSString *)sig
+- (instancetype)initWithSignature:(NSString *)sig
 {
     self = [self init];
     if(self) {
         self.thread = [NSThread currentThread];
         self.copyed = NO;
-        self.blockID = blockID;
         self.signature = sig;
         flags = BLOCK_HAS_SIGNATURE;
         IMP msgForwardIMP = _objc_msgForward;
@@ -83,6 +82,15 @@ static const char *get_block_signature(id b)
         descriptor = malloc(sizeof(struct BlockDescriptor));
         descriptor->size = class_getInstanceSize([self class]);
         descriptor->signature = self.signature.UTF8String;
+    }
+    return self;
+}
+
+- (instancetype)initWithBlockID:(NSInteger)blockID signature:(NSString *)sig
+{
+    self = [self initWithSignature:sig];
+    if(self) {
+        self.blockID = blockID;
     }
     return self;
 }
@@ -122,7 +130,7 @@ static const char *get_block_signature(id b)
 - (void)dealloc
 {
     if(!self.copyed) {
-        [self performSelector:@selector(cleanup) onThread:self.thread withObject:@(self.blockID) waitUntilDone:YES];
+        [self performSelector:@selector(cleanup:) onThread:self.thread withObject:@(self.blockID) waitUntilDone:YES];
     } else {
         
     }
@@ -147,14 +155,17 @@ static const char *get_block_signature(id b)
 
 - (void)forwardInvocation:(NSInvocation *)invocation
 {
-    forward_block_invocation(self.blockID, invocation);
+    if(self.copyed) {
+        forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
+    } else {
+        forward_block_id_invocation(self.blockID, invocation);
+    }
 }
 
 - (id)copyWithZone:(NSZone *)zone
 {
-    DynamBlock *block = [DynamBlock allocWithZone:zone];
+    DynamBlock *block = [[DynamBlock allocWithZone:zone] initWithSignature:self.signature];
     block.copyed = YES;
-    block.signature = self.signature;
     if(self.copyed) {
         block.codeDump = self.codeDump;
         block.upvalueDump = self.upvalueDump;
