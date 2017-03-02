@@ -27,7 +27,6 @@ void forward_invocation(id target, SEL selector, id invocation);
 void forward_block_id_invocation(NSInteger blockID, id invocation);
 void forward_block_code_invocation(NSData *code, NSArray<BlockUpvalue *> *upvalues, id invocation);
 id get_luacontext();
-DynamBlock *create_block(NSInteger blockID, const char* signature);
 void free_block(NSInteger blockID);
 NSData *dump_block_code(NSInteger blockID);
 NSArray<BlockUpvalue *> *dump_block_upvalue(NSInteger blockID);

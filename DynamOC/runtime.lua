@@ -105,7 +105,16 @@ int access(const char *path, int amode);
 
 void forward_invocation(id target, SEL selector, id invocation);
 id get_luacontext();
-id create_block(NSInteger callId, const char* signature);
+
+enum BlockUpvalueType {
+    kBlockUpvalueTypeDouble,
+    kBlockUpvalueTypeInteger,
+    kBlockUpvalueTypeUInteger,
+    kBlockUpvalueTypeBoolean,
+    kBlockUpvalueTypeString,
+    kBlockUpvalueTypeBytes,
+    kBlockUpvalueTypeObject,
+};
 ]]
 
 local C = ffi.C
@@ -794,9 +803,15 @@ end
 function objc.createBlock(lambda, typeEncoding)
     local id = objc.registerLambda(lambda)
     local block = objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
-    -- block:retain()
-    -- ffi.gc(block, _release)
     return block
+end
+
+local upvalueType = ffi.typeof("enum BlockUpvalueType")
+local NSInteger = ffi.typeof("NSInteger")
+local NSUInteger = ffi.typeof("NSUInteger")
+
+function ctype(value)
+    return string.sub(tostring(objc.ffi.typeof(value)), 7, -2)
 end
 
 function objc.dumpBlockUpvalues(lambda)
@@ -808,13 +823,36 @@ function objc.dumpBlockUpvalues(lambda)
         if not name then
             break
         end
-        if type(value) == "cdata" and ffi.istype(_idType, value) then
-            local upvalue = objc.BlockUpvalue:alloc():init()
-            upvalue:setIndex(i)
-            upvalue:setName(objc.Obj(name))
-            upvalue:setValue(value)
-            upvalues:addObject(upvalue)
+        local upvalue = objc.BlockUpvalue:alloc():init()
+        upvalue:setIndex(i)
+        upvalue:setName(objc.Obj(name))
+        if type(value) == "cdata" then
+            if ffi.istype(_idType, value) then
+                upvalue:setValue(value)
+                upvalue:setType(upvalueType("kBlockUpvalueTypeObject"))
+            elseif ffi.istype(NSInteger, value) then
+                upvalue:setValue(objc.NSNumber:alloc():initWithInteger(value))
+                upvalue:setType(upvalueType("kBlockUpvalueTypeInteger"))
+            elseif ffi.istype(NSUInteger, value) then
+                upvalue:setValue(objc.NSNumber:alloc():initWithUnsignedInteger(value))
+                upvalue:setType(upvalueType("kBlockUpvalueTypeUInteger"))
+            else
+                local data = objc.NSData:dataWithBytes_length(value, ffi.sizeof(value))
+                upvalue:setValue(data)
+                upvalue:setCType(objc.Obj(ctype(value)))
+                upvalue:setType(upvalueType("kBlockUpvalueTypeBytes"))
+            end
+        elseif type(value) == "boolean" then
+            upvalue:setValue(objc.NSNumber:alloc():initWithBool(value))
+            upvalue:setType(upvalueType("kBlockUpvalueTypeBoolean"))
+        elseif type(value) == "number" then
+            upvalue:setValue(objc.Obj(value))
+            upvalue:setType(upvalueType("kBlockUpvalueTypeDouble"))
+        elseif type(value) == "string" then
+            upvalue:setValue(objc.Obj(value))
+            upvalue:setType(upvalueType("kBlockUpvalueTypeString"))
         end
+        upvalues:addObject(upvalue)
         i = i + 1
     end
 end
@@ -879,7 +917,23 @@ function objc.evaluateBlockCode(codeData, len)
             local lambda = loadstring(ffi.string(codeData, len))
             for i = 0, tonumber(upvalues:count()) - 1 do
                 local upvalue = upvalues:objectAtIndex(i)
-                debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value())
+                if upvalue:type() == upvalueType("kBlockUpvalueTypeObject") then
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value())
+                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeDouble") then
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), tonumber(upvalue:value():doubleValue()))
+                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeInteger") then
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():integerValue())
+                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeUInteger") then
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():unsignedIntegerValue())
+                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeBoolean") then
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():boolValue())
+                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeString") then
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), ffi.string(upvalue:value():UTF8String()))
+                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeBytes") then
+                    local data = ffi.new(ffi.string(upvalue:cType():UTF8String()))
+                    ffi.copy(data, upvalue:value():bytes(), tonumber(upvalue:value():length()))
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), data)
+                end
             end
             local ret = ffi.new(cType, {lambda(unpack(arguments))})
             invocation:setReturnValue_(ret)

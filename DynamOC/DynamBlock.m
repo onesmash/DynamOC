@@ -67,7 +67,7 @@ static const char *get_block_signature(id b)
         self.thread = [NSThread currentThread];
         self.copyed = NO;
         self.signature = sig;
-        flags = BLOCK_HAS_SIGNATURE;
+        flags = BLOCK_HAS_SIGNATURE | BLOCK_IS_GLOBAL;
         IMP msgForwardIMP = _objc_msgForward;
 #if !defined(__arm64__)
         if([sig hasPrefix:@"{"]) {

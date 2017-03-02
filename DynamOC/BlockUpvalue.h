@@ -8,10 +8,21 @@
 
 #import <Foundation/Foundation.h>
 
-@interface BlockUpvalue : NSObject
+typedef enum {
+    kBlockUpvalueTypeDouble,
+    kBlockUpvalueTypeInteger,
+    kBlockUpvalueTypeUInteger,
+    kBlockUpvalueTypeBoolean,
+    kBlockUpvalueTypeString,
+    kBlockUpvalueTypeBytes,
+    kBlockUpvalueTypeObject,
+} BlockUpvalueType;
 
+@interface BlockUpvalue : NSObject
 @property (nonatomic, assign) NSInteger index;
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, strong) id value;
+@property (nonatomic, copy) NSString *cType;
+@property (nonatomic, assign) BlockUpvalueType type;
 
 @end
