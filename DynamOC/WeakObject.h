@@ -8,7 +8,7 @@
 
 #import <Foundation/Foundation.h>
 
-@interface WeakObject : NSObject
+@interface WeakObject : NSProxy
 
 @property (nonatomic, weak) id object;
 

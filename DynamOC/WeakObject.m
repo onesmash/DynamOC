@@ -16,10 +16,7 @@
 
 - (instancetype)initWithObject:(id)object
 {
-    if(self) {
-        self = [self init];
-        self.object = object;
-    }
+    self.object = object;
     return self;
 }
 

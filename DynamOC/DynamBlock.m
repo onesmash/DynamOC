@@ -47,6 +47,9 @@ static const char *get_block_signature(id b)
     }
 }
 
+static void copy_block(DynamBlock *dst, const DynamBlock *src);
+static void dispose_block(const void *block);
+
 @interface DynamBlock () {
     id block_;
 }
@@ -95,38 +98,6 @@ static const char *get_block_signature(id b)
     return self;
 }
 
-- (instancetype)initWithBlock:(id)block
-{
-    self = [self init];
-    if(self) {
-        block_ = [block copy];
-        
-        // The bottom 16 bits represent the block's retain count
-        struct Block *block = (__bridge struct Block *)block_;
-        flags = block->flags & ~0xFFFF;
-        descriptor = malloc(sizeof(struct BlockDescriptor));
-        descriptor->size = class_getInstanceSize([self class]);
-        if(flags & BLOCK_HAS_SIGNATURE) {
-            void *signatureLocation = block->descriptor;
-            signatureLocation += sizeof(block->descriptor->reserved);
-            signatureLocation += sizeof(block->descriptor->size);
-            
-            if(block->flags & BLOCK_HAS_COPY_DISPOSE) {
-                signatureLocation = block->descriptor->signature;
-            }
-            signatureLocation = get_block_signature(block_);
-        }
-        
-        invoke = _objc_msgForward;
-        if(flags & BLOCK_USE_STRET) {
-#if !defined(__arm64__)
-            invoke = (IMP)_objc_msgForward_stret;
-#endif
-        }
-    }
-    return self;
-}
-
 - (void)dealloc
 {
     if(!self.copyed) {
@@ -158,7 +129,12 @@ static const char *get_block_signature(id b)
     if(self.copyed) {
         forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
     } else {
-        forward_block_id_invocation(self.blockID, invocation);
+        if([[NSThread currentThread] isEqual:self.thread]) {
+            forward_block_id_invocation(self.blockID, invocation);
+        } else {
+            [self performSelector:@selector(dumpBlockTo:) onThread:self.thread withObject:self waitUntilDone:YES];
+            forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
+        }
     }
 }
 
