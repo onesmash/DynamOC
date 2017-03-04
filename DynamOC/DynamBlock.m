@@ -31,22 +31,6 @@ struct Block {
     struct BlockDescriptor *descriptor;
 };
 
-static const char *get_block_signature(id b)
-{
-    struct Block *block = (__bridge struct Block *)b;
-    if(block->flags & BLOCK_HAS_SIGNATURE) {
-        void *signatureLocation = block->descriptor;
-        signatureLocation += sizeof(block->descriptor->reserved);
-        signatureLocation += sizeof(block->descriptor->size);
-        
-        if(block->flags & BLOCK_HAS_COPY_DISPOSE) {
-            signatureLocation = block->descriptor->signature;
-        }
-        const char *sig = (*(const char **)signatureLocation);
-        return sig;
-    }
-}
-
 static void copy_block(DynamBlock *dst, const DynamBlock *src);
 static void dispose_block(const void *block);
 
@@ -54,7 +38,7 @@ static void dispose_block(const void *block);
     id block_;
 }
 
-@property (nonatomic, weak) NSThread *thread;
+@property (nonatomic, weak) NSThread *createThread;
 @property (nonatomic, assign) BOOL copyed;
 @property (nonatomic, strong) NSData *codeDump;
 @property (nonatomic, strong) NSArray *upvalueDump;
@@ -67,10 +51,10 @@ static void dispose_block(const void *block);
 {
     self = [self init];
     if(self) {
-        self.thread = [NSThread currentThread];
+        self.createThread = [NSThread currentThread];
         self.copyed = NO;
         self.signature = sig;
-        flags = BLOCK_HAS_SIGNATURE | BLOCK_IS_GLOBAL;
+        flags = BLOCK_IS_GLOBAL;
         IMP msgForwardIMP = _objc_msgForward;
 #if !defined(__arm64__)
         if([sig hasPrefix:@"{"]) {
@@ -84,7 +68,6 @@ static void dispose_block(const void *block);
         invoke = msgForwardIMP;
         descriptor = malloc(sizeof(struct BlockDescriptor));
         descriptor->size = class_getInstanceSize([self class]);
-        descriptor->signature = self.signature.UTF8String;
     }
     return self;
 }
@@ -101,7 +84,7 @@ static void dispose_block(const void *block);
 - (void)dealloc
 {
     if(!self.copyed) {
-        [self performSelector:@selector(cleanup:) onThread:self.thread withObject:@(self.blockID) waitUntilDone:YES];
+        [self performSelector:@selector(cleanup:) onThread:self.createThread withObject:@(self.blockID) waitUntilDone:YES];
     } else {
         
     }
@@ -129,11 +112,17 @@ static void dispose_block(const void *block);
     if(self.copyed) {
         forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
     } else {
-        if([[NSThread currentThread] isEqual:self.thread]) {
+        if([[NSThread currentThread] isEqual:self.createThread]) {
             forward_block_id_invocation(self.blockID, invocation);
         } else {
-            [self performSelector:@selector(dumpBlockTo:) onThread:self.thread withObject:self waitUntilDone:YES];
-            forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
+            if(!self.syncDispatch) {
+                [self performSelector:@selector(dumpBlockTo:) onThread:self.createThread withObject:self waitUntilDone:YES];
+                forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
+            } else {
+                push_luacontext(get_luacontext(self.createThread));
+                forward_block_id_invocation(self.blockID, invocation);
+                pop_luacontext();
+            }
         }
     }
 }
@@ -141,13 +130,13 @@ static void dispose_block(const void *block);
 - (id)copyWithZone:(NSZone *)zone
 {
     DynamBlock *block = [[DynamBlock allocWithZone:zone] initWithSignature:self.signature];
-    block.copyed = YES;
-    if(self.copyed) {
-        block.codeDump = self.codeDump;
-        block.upvalueDump = self.upvalueDump;
-    } else {
-        [self performSelector:@selector(dumpBlockTo:) onThread:self.thread withObject:block waitUntilDone:YES];
+    if(!self.copyed) {
+        [self performSelector:@selector(dumpBlockTo:) onThread:self.createThread withObject:self waitUntilDone:YES];
     }
+    block.createThread = [NSThread currentThread];
+    block.codeDump = self.codeDump;
+    block.upvalueDump = self.upvalueDump;
+    block.copyed = YES;
     return block;
 }
 

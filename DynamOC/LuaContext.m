@@ -47,12 +47,43 @@ static int register_lambda(lua_State *L)
 
 + (LuaContext *)currentContext
 {
-    LuaContext *context = [[NSThread currentThread].threadDictionary objectForKey:kThreadLocalLuaContextKey];
-    if(!context) {
-        context = [[LuaContext alloc] init];
-        [[NSThread currentThread].threadDictionary setObject:context forKey:kThreadLocalLuaContextKey];
+    @synchronized (self) {
+        return [self contextForThread:[NSThread currentThread]];
     }
-    return context;
+}
+
++ (LuaContext *)contextForThread:(NSThread *)thread
+{
+    @synchronized (self) {
+        NSMutableArray<LuaContext *> *contexts = [thread.threadDictionary objectForKey:kThreadLocalLuaContextKey];
+        if(!contexts || contexts.count <= 0) {
+            contexts = [NSMutableArray array];
+            LuaContext *context = [[LuaContext alloc] init];
+            [contexts addObject:context];
+            [thread.threadDictionary setObject:contexts forKey:kThreadLocalLuaContextKey];
+        }
+        return contexts.lastObject;
+    }
+}
+
++ (void)pushContext:(LuaContext *)context
+{
+    @synchronized (self) {
+        NSMutableArray<LuaContext *> *contexts = [[NSThread currentThread].threadDictionary objectForKey:kThreadLocalLuaContextKey];
+        if(!contexts) {
+            contexts = [NSMutableArray array];
+            [[NSThread currentThread].threadDictionary setObject:contexts forKey:kThreadLocalLuaContextKey];
+        }
+        [contexts addObject:context];
+    }
+}
+
++ (void)popContext
+{
+    @synchronized (self) {
+        NSMutableArray<LuaContext *> *contexts = [[NSThread currentThread].threadDictionary objectForKey:kThreadLocalLuaContextKey];
+        [contexts removeLastObject];
+    }
 }
 
 - (instancetype)init
@@ -208,7 +239,7 @@ static int register_lambda(lua_State *L)
 void forward_invocation(NSObject *target, SEL selector, NSInvocation *invocation)
 {
     @autoreleasepool {
-        LuaContext *context = get_luacontext();
+        LuaContext *context = get_current_luacontext();
         context.argumentRegister = invocation;
         NSData *luaCodeData = [[target.class __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(invocation.selector)]];
         SEL sel = NSSelectorFromString(@"__forwardInvocation:");
@@ -223,7 +254,7 @@ void forward_invocation(NSObject *target, SEL selector, NSInvocation *invocation
 void forward_block_id_invocation(NSInteger callId, id invocation)
 {
     @autoreleasepool {
-        LuaContext *context = get_luacontext();
+        LuaContext *context = get_current_luacontext();
         context.argumentRegister = invocation;
         [context forwardBlockIDInvocation:callId];
     }
@@ -232,16 +263,37 @@ void forward_block_id_invocation(NSInteger callId, id invocation)
 void forward_block_code_invocation(NSData *code, NSArray<BlockUpvalue *> *upvalues, id invocation)
 {
     @autoreleasepool {
-        LuaContext *context = get_luacontext();
+        LuaContext *context = get_current_luacontext();
         context.argumentRegister = @[upvalues, invocation];
         [context forwardBlockCodeInvocation:code];
     }
 }
 
-id get_luacontext()
+LuaContext *get_luacontext(NSThread *thread)
 {
     @autoreleasepool {
-        return [LuaContext currentContext];
+        return [LuaContext contextForThread:thread];
+    }
+}
+
+LuaContext *get_current_luacontext()
+{
+    @autoreleasepool {
+        return [LuaContext contextForThread:[NSThread currentThread]];
+    }
+}
+
+void push_luacontext(LuaContext *context)
+{
+    @autoreleasepool {
+        [LuaContext pushContext:context];
+    }
+}
+
+void pop_luacontext()
+{
+    @autoreleasepool {
+        [LuaContext popContext];
     }
 }
 
@@ -256,7 +308,7 @@ DynamBlock *create_block(NSInteger blockID, const char* signature)
 void free_block(NSInteger blockID)
 {
     @autoreleasepool {
-        LuaContext *context = get_luacontext();
+        LuaContext *context = get_current_luacontext();
         [context freeLuaBlock:blockID];
     }
 }
@@ -264,7 +316,7 @@ void free_block(NSInteger blockID)
 NSData *dump_block_code(NSInteger blockID)
 {
     @autoreleasepool {
-        LuaContext *context = get_luacontext();
+        LuaContext *context = get_current_luacontext();
         return [context dumpLuaBlockCode:blockID];
     }
 }
@@ -272,7 +324,7 @@ NSData *dump_block_code(NSInteger blockID)
 NSArray<BlockUpvalue *> *dump_block_upvalue(NSInteger blockID)
 {
     @autoreleasepool {
-        LuaContext *context = get_luacontext();
+        LuaContext *context = get_current_luacontext();
         context.returnRegister = [NSMutableArray array];
         return [context dumpLuaBlockUpvalue:blockID];
     }

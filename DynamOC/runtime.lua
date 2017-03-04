@@ -5,7 +5,7 @@ local jit = require("jit")
 local objc = {
     debug = false,
     relaxedSyntax = true, -- Allows you to omit trailing underscores when calling methods at the expense of some performance.
-    fallbackOnMsgSend = false, -- Calls objc_msgSend if a method implementation is not found (This throws an exception on failure)
+    fallbackOnMsgSend = true, -- Calls objc_msgSend if a method implementation is not found (This throws an exception on failure)
     frameworkSearchPaths = {
         "/System/Library/Frameworks/%s.framework/%s",
         "/Library/Frameworks/%s.framework/%s",
@@ -62,6 +62,7 @@ typedef struct {
 } objc_property_attribute_t;
 
 id objc_msgSend(id theReceiver, SEL theSelector, ...);
+void objc_msgSend_stret(id self, SEL op, ...);
 Class objc_allocateClassPair(Class superclass, const char *name, size_t extraBytes);
 void objc_registerClassPair(Class cls);
 id _objc_msgForward(id receiver, SEL sel, ...);
@@ -104,7 +105,7 @@ void free(void *ptr);
 int access(const char *path, int amode);
 
 void forward_invocation(id target, SEL selector, id invocation);
-id get_luacontext();
+id get_current_luacontext();
 
 enum BlockUpvalueType {
     kBlockUpvalueTypeDouble,
@@ -530,6 +531,15 @@ ffi.metatype("struct objc_class", {
             elseif objc.fallbackOnMsgSend == true then
                 -- TODO
                 imp = C.objc_msgSend
+                if jit.arch ~= "arm64" then
+                    if string.sub(typeEncoding, 1, 1) == "{" then
+                        local signature = self:methodSignatureForSelector(SEL(selStr))
+                        local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
+                        if range.location ~= _INT_MAX then
+                            imp = C.objc_msgSend_stret
+                        end
+                    end
+                end
             else
                 print("[objc] Method "..selStr.." not found")
                 return nil
@@ -594,6 +604,15 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
         elseif objc.fallbackOnMsgSend == true then
             -- TODO
             imp = C.objc_msgSend
+            if jit.arch ~= "arm64" then
+                if string.sub(typeEncoding, 1, 1) == "{" then
+                    local signature = self:methodSignatureForSelector(SEL(selStr))
+                    local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
+                    if range.location ~= _INT_MAX then
+                        imp = C.objc_msgSend_stret
+                    end
+                end
+            end
         else
             print("[objc] Method "..selStr.." not found")
             return nil
@@ -686,7 +705,7 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     local msgForwardIMP = C._objc_msgForward
     if jit.arch ~= "arm64" then
         if string.sub(typeEncoding, 1, 1) == "{" then
-            local signature = objc.impSignatureForTypeEncoding(typeEncoding)
+            local signature = objc.NSMethodSignature:signatureWithObjCTypes(typeEncoding)
             local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
             if range.location ~= _INT_MAX then
                 msgForwardIMP = C._objc_msgForward_stret
@@ -815,7 +834,7 @@ function ctype(value)
 end
 
 function objc.dumpBlockUpvalues(lambda)
-    local context = C.get_luacontext()
+    local context = C.get_current_luacontext()
     local upvalues = context:returnRegister()
     local i = 1
     while true do
@@ -858,7 +877,7 @@ function objc.dumpBlockUpvalues(lambda)
 end
 
 function objc.evaluateBlock(lambda)
-    local context = C.get_luacontext()
+    local context = C.get_current_luacontext()
     local invocation = context:argumentRegister()
     local methodSignature = invocation:methodSignature()
     local numberOfArguments = tonumber(methodSignature:numberOfArguments())
@@ -889,7 +908,7 @@ function objc.evaluateBlock(lambda)
 end
 
 function objc.evaluateBlockCode(codeData, len)
-    local context = C.get_luacontext()
+    local context = C.get_current_luacontext()
     local upvalues = context:argumentRegister():objectAtIndex(0)
     local invocation = context:argumentRegister():objectAtIndex(1)
     local methodSignature = invocation:methodSignature()
@@ -918,7 +937,10 @@ function objc.evaluateBlockCode(codeData, len)
             for i = 0, tonumber(upvalues:count()) - 1 do
                 local upvalue = upvalues:objectAtIndex(i)
                 if upvalue:type() == upvalueType("kBlockUpvalueTypeObject") then
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value())
+                    local value = upvalue:value();
+                    value:retain()
+                    ffi.gc(value, _release)
+                    debug.setupvalue(lambda, tonumber(upvalue:index()), value)
                 elseif upvalue:type() == upvalueType("kBlockUpvalueTypeDouble") then
                     debug.setupvalue(lambda, tonumber(upvalue:index()), tonumber(upvalue:value():doubleValue()))
                 elseif upvalue:type() == upvalueType("kBlockUpvalueTypeInteger") then
@@ -942,7 +964,7 @@ function objc.evaluateBlockCode(codeData, len)
 end
 
 function objc.evaluateMethod(codeData, len)
-    local context = C.get_luacontext()
+    local context = C.get_current_luacontext()
     local invocation = context:argumentRegister()
     local methodSignature = invocation:methodSignature()
     local numberOfArguments = tonumber(methodSignature:numberOfArguments())

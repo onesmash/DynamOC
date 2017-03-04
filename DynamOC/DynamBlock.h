@@ -11,8 +11,6 @@
 struct BlockDescriptor {
     uintptr_t reserved;         // NULL
     uintptr_t size;         // sizeof(struct Block_literal_1)
-    // required ABI.2010.3.16
-    const char *signature;                         // IFF (1<<30)
 };
 
 @interface DynamBlock : NSObject <NSCopying> {
@@ -24,6 +22,7 @@ struct BlockDescriptor {
 
 @property (nonatomic, assign) NSInteger blockID;
 @property (nonatomic, copy) NSString *signature;
+@property (nonatomic, assign) BOOL syncDispatch;
 
 - (instancetype)initWithBlock:(id)block;
 - (instancetype)initWithBlockID:(NSInteger)callId signature:(NSString *)sig;

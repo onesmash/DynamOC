@@ -15,6 +15,10 @@
 
 + (NSBundle *)dynamOCBundle;
 + (LuaContext *)currentContext;
++ (LuaContext *)contextForThread:(NSThread *)thread;
++ (void)pushContext:(LuaContext *)context;
++ (void)popContext;
+
 
 - (BOOL)evaluateScript:(NSString *)code;
 
@@ -26,7 +30,10 @@
 void forward_invocation(id target, SEL selector, id invocation);
 void forward_block_id_invocation(NSInteger blockID, id invocation);
 void forward_block_code_invocation(NSData *code, NSArray<BlockUpvalue *> *upvalues, id invocation);
-id get_luacontext();
+LuaContext *get_luacontext(NSThread *thread);
+LuaContext *get_current_luacontext();
+void push_luacontext(LuaContext *context);
+void pop_luacontext();
 void free_block(NSInteger blockID);
 NSData *dump_block_code(NSInteger blockID);
 NSArray<BlockUpvalue *> *dump_block_upvalue(NSInteger blockID);
