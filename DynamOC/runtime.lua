@@ -80,6 +80,9 @@ IMP class_replaceMethod(Class cls, SEL name, IMP imp, const char *types);
 BOOL class_addMethod(Class cls, SEL name, IMP imp, const char *types);
 BOOL class_addIvar(Class cls, const char *name, size_t size, uint8_t alignment, const char *types);
 BOOL class_addProperty(Class cls, const char *name, const objc_property_attribute_t *attributes, unsigned int attributeCount);
+id objc_getProperty(id self, SEL _cmd, ptrdiff_t offset, BOOL atomic);
+void objc_setProperty(id self, SEL _cmd, ptrdiff_t offset, id newValue, BOOL atomic, signed char shouldCopy);
+void objc_copyStruct(void *dest, const void *src, ptrdiff_t size, BOOL atomic, BOOL hasStrong);
 
 Class object_getClass(id object);
 const char *object_getClassName(id obj);
@@ -669,7 +672,6 @@ function objc.createClass(superclass, className, ivars)
                 local ffiType = ffi.typeof(cType)
                 local size = ffi.sizeof(ffiType)
                 local alignment = ffi.alignof(ffiType)
-                -- TODO 使用property实现
                 C.class_addIvar(class, name, size, alignment, typeEnc)
             end
         end
@@ -677,6 +679,95 @@ function objc.createClass(superclass, className, ivars)
 
     C.objc_registerClassPair(class)
     return class
+end
+
+local function _getIvarInfo(instance, ivarName)
+    local ivar = C.object_getInstanceVariable(instance, ivarName, nil)
+    if ivar == nil then
+        return nil
+    end
+    local typeEnc = ffi.string(C.ivar_getTypeEncoding(ivar))
+    local typeArr = objc.parseTypeEncoding(typeEnc)
+    if typeArr == nil or #typeArr ~= 1 then
+        return nil
+    end
+    local cType = objc.typeToCType(typeArr[1])
+    if cType == nil then
+        return nil
+    end
+    local offset = C.ivar_getOffset(ivar)
+    return ivar, offset, typeEnc, cType
+end
+
+function objc.addProperty(class, name, attributes)
+    local count = 0
+    for _ in pairs(attributes) do count = count + 1 end
+    local cType = "struc objc_property_attribute_t[" .. count .. "]"
+    local attrs = ffi.new(ctype)
+    local index = 0;
+    attrs[index].name = "T"
+    attrs[index].value = attribues["typeEncoding"]
+    index = index + 1
+    if attribues["readOnly"] then
+        attrs[index].name = "R"
+        attrs[index].value = ""
+        index = index + 1
+    end
+    if attribues["ownerShip"] then
+        local ownerShip = attribues["ownerShip"]
+        if ownerShip == "strong" then
+            attrs[index].name = "&"
+            attrs[index].value = ""
+            index = index + 1
+        elseif ownerShip == "weak" then
+            attrs[index].name = "W"
+            attrs[index].value = ""
+            index = index + 1
+        elseif ownerShip == "copy" then
+            attrs[index].name = "C"
+            attrs[index].value = ""
+            index = index + 1
+        end
+    end
+    if attributes["nonatomic"] then
+        attrs[index].name = "N"
+        attrs[index].value = ""
+        index = index + 1
+    end
+    if attribues["setterName"] then
+        attrs[index].name = "S"
+        attrs[index].value = attribues["setterName"]
+        index = index + 1
+    else
+        local setter = "set"..name:sub(1,1):upper()..name:sub(2)
+        attrs[index].name = "S"
+        attrs[index].value = setter
+        objc.addMethod(class, SEL(setter), function(self, cmd, value)
+            if type(value) == "cdata" then
+                local shouldCopy = attributes["ownerShip"] == "copy" or value:isKindOfClass(objc.NSBlock)
+                local nonatomic = attributes["nonatomic"] == true 
+                local _, offset, typeEnc, cType = _getIvarInfo(self, attribues["ivarName"])
+                if ffi.istype(_idType, value) then
+                    C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy)
+                else 
+                    local src = ffi.cast(cType.."[1]", value)
+                    local dst = ffi.cast(cType.."*", self + offset)
+                    C.objc_copyStruct(dst, src, ffi.sizeof(value), not nonatomic, false)
+                end
+            end
+        end, "@:"..attribues["typeEncoding"])
+    end
+    if attribues["getterName"] then
+        attrs[index].name = "G"
+        attrs[index].value = attribues["getterName"]
+        index = index + 1
+    else 
+    end
+    if attribues["ivarName"] then
+        attrs[index].name = "V"
+        attrs[index].value = attribues["ivarName"]
+    else 
+    end
 end
 
 -- Calls the superclass's implementation of a method
@@ -738,47 +829,6 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     class:__setLuaLambda_forKey_(data, objc.Obj(objc.selToStr(selector)))
 
     C.class_replaceMethod(class, selector, msgForwardIMP, typeEncoding)
-    -- typeEncoding = typeEncoding or "v@:"
-    -- local signature = objc.impSignatureForTypeEncoding(typeEncoding)
-    -- local imp = ffi.cast(signature, lambda)
-    -- imp = ffi.cast("IMP", imp)
-
-    -- -- If one exists, the existing/super method will be renamed to this selector
-    -- local renamedSel = objc.SEL("__"..objc.selToStr(selector))
-    
-    -- local couldAddMethod = C.class_addMethod(class, selector, imp, typeEncoding)
-    -- if couldAddMethod == 0 then
-    --     -- If the method already exists, we just add the new method as old{selector} and swizzle them
-    --     if C.class_addMethod(class, renamedSel, imp, typeEncoding) == 1 then
-    --         objc.swizzle(class, selector, renamedSel)
-    --     else
-    --         error("Couldn't replace method")
-    --     end
-    -- else
-    --     local superClass = C.class_getSuperclass(class)
-    --     local superMethod = C.class_getInstanceMethod(superClass, selector)
-    --     if superMethod ~= nil then
-    --         C.class_addMethod(class, renamedSel, C.method_getImplementation(superMethod), C.method_getTypeEncoding(superMethod))
-    --     end
-    -- end
-end
-
-local function _getIvarInfo(instance, ivarName)
-    local ivar = C.object_getInstanceVariable(instance, ivarName, nil)
-    if ivar == nil then
-        return nil
-    end
-    local typeEnc = ffi.string(C.ivar_getTypeEncoding(ivar))
-    local typeArr = objc.parseTypeEncoding(typeEnc)
-    if typeArr == nil or #typeArr ~= 1 then
-        return nil
-    end
-    local cType = objc.typeToCType(typeArr[1])
-    if cType == nil then
-        return nil
-    end
-    local offset = C.ivar_getOffset(ivar)
-    return ivar, offset, typeEnc, cType
 end
 
 -- Gets the value of an ivar
