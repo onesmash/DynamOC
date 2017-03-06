@@ -137,7 +137,7 @@ static int register_lambda(lua_State *L)
         lua_pop(_L, 1);
         return YES;
     }
-    lua_pop(_L, 2);
+    lua_pop(_L, 1);
     return NO;
 }
 

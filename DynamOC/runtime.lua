@@ -61,6 +61,8 @@ typedef struct {
     const char *value;
 } objc_property_attribute_t;
 
+typedef struct old_property *objc_property_t;
+
 id objc_msgSend(id theReceiver, SEL theSelector, ...);
 void objc_msgSend_stret(id self, SEL op, ...);
 Class objc_allocateClassPair(Class superclass, const char *name, size_t extraBytes);
@@ -80,6 +82,7 @@ IMP class_replaceMethod(Class cls, SEL name, IMP imp, const char *types);
 BOOL class_addMethod(Class cls, SEL name, IMP imp, const char *types);
 BOOL class_addIvar(Class cls, const char *name, size_t size, uint8_t alignment, const char *types);
 BOOL class_addProperty(Class cls, const char *name, const objc_property_attribute_t *attributes, unsigned int attributeCount);
+objc_property_t class_getProperty(Class cls, const char *name)
 id objc_getProperty(id self, SEL _cmd, ptrdiff_t offset, BOOL atomic);
 void objc_setProperty(id self, SEL _cmd, ptrdiff_t offset, id newValue, BOOL atomic, signed char shouldCopy);
 void objc_copyStruct(void *dest, const void *src, ptrdiff_t size, BOOL atomic, BOOL hasStrong);
@@ -700,21 +703,21 @@ local function _getIvarInfo(instance, ivarName)
 end
 
 function objc.addProperty(class, name, attributes)
-    local count = 0
+    local count = 3
     for _ in pairs(attributes) do count = count + 1 end
-    local cType = "struc objc_property_attribute_t[" .. count .. "]"
-    local attrs = ffi.new(ctype)
+    local cType = "objc_property_attribute_t[" .. count .. "]"
+    local attrs = ffi.new(cType, {})
     local index = 0;
     attrs[index].name = "T"
-    attrs[index].value = attribues["typeEncoding"]
+    attrs[index].value = attributes["typeEncoding"]
     index = index + 1
-    if attribues["readOnly"] then
+    if attributes["readOnly"] then
         attrs[index].name = "R"
         attrs[index].value = ""
         index = index + 1
     end
-    if attribues["ownerShip"] then
-        local ownerShip = attribues["ownerShip"]
+    if attributes["ownerShip"] then
+        local ownerShip = attributes["ownerShip"]
         if ownerShip == "strong" then
             attrs[index].name = "&"
             attrs[index].value = ""
@@ -734,19 +737,20 @@ function objc.addProperty(class, name, attributes)
         attrs[index].value = ""
         index = index + 1
     end
-    if attribues["setterName"] then
+    local setter = "set"..name:sub(1,1):upper()..name:sub(2)..":"
+    if attributes["setterName"] then
         attrs[index].name = "S"
-        attrs[index].value = attribues["setterName"]
+        attrs[index].value = attributes["setterName"]
         index = index + 1
     else
-        local setter = "set"..name:sub(1,1):upper()..name:sub(2)
         attrs[index].name = "S"
         attrs[index].value = setter
         objc.addMethod(class, SEL(setter), function(self, cmd, value)
             if type(value) == "cdata" then
+                local ivarName = attributes["ivarName"] or "_"..name
                 local shouldCopy = attributes["ownerShip"] == "copy" or value:isKindOfClass(objc.NSBlock)
                 local nonatomic = attributes["nonatomic"] == true 
-                local _, offset, typeEnc, cType = _getIvarInfo(self, attribues["ivarName"])
+                local _, offset, typeEnc, cType = _getIvarInfo(self, ivarName)
                 if ffi.istype(_idType, value) then
                     C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy)
                 else 
@@ -755,19 +759,54 @@ function objc.addProperty(class, name, attributes)
                     C.objc_copyStruct(dst, src, ffi.sizeof(value), not nonatomic, false)
                 end
             end
-        end, "@:"..attribues["typeEncoding"])
+        end, "v@:"..attributes["typeEncoding"])
+        print(attributes["typeEncoding"])
+        index = index + 1
     end
-    if attribues["getterName"] then
+    if attributes["getterName"] then
         attrs[index].name = "G"
-        attrs[index].value = attribues["getterName"]
+        attrs[index].value = attributes["getterName"]
         index = index + 1
     else 
+        attrs[index].name = "G"
+        attrs[index].value = name
+        objc.addMethod(class, SEL(name), function(self, cmd)
+            local ivarName = attributes["ivarName"] or "_"..name 
+            local nonatomic = attributes["nonatomic"] == true 
+            local _, offset, typeEnc, cType = _getIvarInfo(self, ivarName)
+            if ffi.typeof(cType) == _idType then
+                return C.objc_getProperty(self, cmd, offset, not nonatomic)
+            else 
+                local src = ffi.cast(cType.."*", self + offset)
+                local dst = ffi.new(cType.."[1]")
+                local ffiType = ffi.typeof(cType)
+                return C.objc_copyStruct(dst, src, ffi.sizeof(ffiType), not nonatomic, false)
+            end
+        end, attributes["typeEncoding"].."@:")
+        index = index + 1
     end
-    if attribues["ivarName"] then
+    local ivarName = "_"..name
+    if attributes["ivarName"] then
         attrs[index].name = "V"
-        attrs[index].value = attribues["ivarName"]
+        attrs[index].value = attributes["ivarName"]
     else 
+        attrs[index].name = "V"
+        attrs[index].value = ivarName
+        local ivar, offset, typeEnc, cType  = _getIvarInfo(self, ivarName)
+        if ivar == nil then
+            local typeArr = objc.parseTypeEncoding(attributes["typeEncoding"])
+            if typeArr ~= nil and #typeArr == 1 then
+                local cType = objc.typeToCType(typeArr[1])
+                if cType then
+                    local ffiType = ffi.typeof(cType)
+                    local size = ffi.sizeof(ffiType)
+                    local alignment = ffi.alignof(ffiType)
+                    C.class_addIvar(class, ivarName, size, alignment, attributes["typeEncoding"])
+                end
+            end
+        end
     end
+    C.class_addProperty(class, name, attrs, count)
 end
 
 -- Calls the superclass's implementation of a method
