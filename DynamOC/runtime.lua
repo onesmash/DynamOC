@@ -61,8 +61,6 @@ typedef struct {
     const char *value;
 } objc_property_attribute_t;
 
-typedef struct old_property *objc_property_t;
-
 id objc_msgSend(id theReceiver, SEL theSelector, ...);
 void objc_msgSend_stret(id self, SEL op, ...);
 Class objc_allocateClassPair(Class superclass, const char *name, size_t extraBytes);
@@ -82,7 +80,6 @@ IMP class_replaceMethod(Class cls, SEL name, IMP imp, const char *types);
 BOOL class_addMethod(Class cls, SEL name, IMP imp, const char *types);
 BOOL class_addIvar(Class cls, const char *name, size_t size, uint8_t alignment, const char *types);
 BOOL class_addProperty(Class cls, const char *name, const objc_property_attribute_t *attributes, unsigned int attributeCount);
-objc_property_t class_getProperty(Class cls, const char *name)
 id objc_getProperty(id self, SEL _cmd, ptrdiff_t offset, BOOL atomic);
 void objc_setProperty(id self, SEL _cmd, ptrdiff_t offset, id newValue, BOOL atomic, signed char shouldCopy);
 void objc_copyStruct(void *dest, const void *src, ptrdiff_t size, BOOL atomic, BOOL hasStrong);
@@ -112,15 +109,14 @@ int access(const char *path, int amode);
 
 void forward_invocation(id target, SEL selector, id invocation);
 id get_current_luacontext();
-
-enum BlockUpvalueType {
-    kBlockUpvalueTypeDouble,
-    kBlockUpvalueTypeInteger,
-    kBlockUpvalueTypeUInteger,
-    kBlockUpvalueTypeBoolean,
-    kBlockUpvalueTypeString,
-    kBlockUpvalueTypeBytes,
-    kBlockUpvalueTypeObject,
+enum DynamUpvalueType {
+    kDynamUpvalueTypeDouble,
+    kDynamUpvalueTypeInteger,
+    kDynamUpvalueTypeUInteger,
+    kDynamUpvalueTypeBoolean,
+    kDynamUpvalueTypeString,
+    kDynamUpvalueTypeBytes,
+    kDynamUpvalueTypeObject
 };
 ]]
 
@@ -660,30 +656,6 @@ ffi.metatype("struct objc_object", {
 --
 -- Introspection and class extension
 
--- Creates and returns a new subclass of superclass (or if superclass is nil, a new root class)
--- Last argument is an optional table of ivars, keyed by name with values containing the type encoding for the var
-function objc.createClass(superclass, className, ivars)
-    ivars = ivars or {}
-    local class = C.objc_allocateClassPair(superclass, className, 0)
-
-    for name, typeEnc in pairs(ivars) do
-        -- Parse the type and get the size
-        local typeArr = objc.parseTypeEncoding(typeEnc)
-        if typeArr ~= nil and #typeArr == 1 then
-            local cType = objc.typeToCType(typeArr[1])
-            if cType ~= nil then
-                local ffiType = ffi.typeof(cType)
-                local size = ffi.sizeof(ffiType)
-                local alignment = ffi.alignof(ffiType)
-                C.class_addIvar(class, name, size, alignment, typeEnc)
-            end
-        end
-    end
-
-    C.objc_registerClassPair(class)
-    return class
-end
-
 local function _getIvarInfo(instance, ivarName)
     local ivar = C.object_getInstanceVariable(instance, ivarName, nil)
     if ivar == nil then
@@ -702,7 +674,9 @@ local function _getIvarInfo(instance, ivarName)
     return ivar, offset, typeEnc, cType
 end
 
-function objc.addProperty(class, name, attributes)
+objc.getIvarInfo = _getIvarInfo
+
+function addProperty(class, name, attributes)
     local count = 3
     for _ in pairs(attributes) do count = count + 1 end
     local cType = "objc_property_attribute_t[" .. count .. "]"
@@ -745,22 +719,23 @@ function objc.addProperty(class, name, attributes)
     else
         attrs[index].name = "S"
         attrs[index].value = setter
+        local ivarName = attributes["ivarName"] or "_"..name
+        local shouldCopy = attributes["ownerShip"] == "copy"
+        local nonatomic = attributes["nonatomic"] == true 
         objc.addMethod(class, SEL(setter), function(self, cmd, value)
             if type(value) == "cdata" then
-                local ivarName = attributes["ivarName"] or "_"..name
-                local shouldCopy = attributes["ownerShip"] == "copy" or value:isKindOfClass(objc.NSBlock)
-                local nonatomic = attributes["nonatomic"] == true 
-                local _, offset, typeEnc, cType = _getIvarInfo(self, ivarName)
-                if ffi.istype(_idType, value) then
-                    C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy)
-                else 
-                    local src = ffi.cast(cType.."[1]", value)
-                    local dst = ffi.cast(cType.."*", self + offset)
-                    C.objc_copyStruct(dst, src, ffi.sizeof(value), not nonatomic, false)
+                local ivar, offset, typeEnc, cType = runtime.getIvarInfo(self, ivarName)
+                if ivar then
+                    if runtime.ffi.istype(runtime.idType, value) then
+                        runtime.ffi.C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy or value:isKindOfClass(objc.NSBlock))
+                    else 
+                        local src = runtime.ffi.cast(cType.."[1]", value)
+                        local dst = runtime.ffi.cast(cType.."*", self + offset)
+                        runtime.ffi.C.objc_copyStruct(dst, src, runtime.ffi.sizeof(value), not nonatomic, false)
+                    end
                 end
             end
         end, "v@:"..attributes["typeEncoding"])
-        print(attributes["typeEncoding"])
         index = index + 1
     end
     if attributes["getterName"] then
@@ -770,17 +745,17 @@ function objc.addProperty(class, name, attributes)
     else 
         attrs[index].name = "G"
         attrs[index].value = name
+        local ivarName = attributes["ivarName"] or "_"..name 
+        local nonatomic = attributes["nonatomic"] == true
         objc.addMethod(class, SEL(name), function(self, cmd)
-            local ivarName = attributes["ivarName"] or "_"..name 
-            local nonatomic = attributes["nonatomic"] == true 
-            local _, offset, typeEnc, cType = _getIvarInfo(self, ivarName)
-            if ffi.typeof(cType) == _idType then
-                return C.objc_getProperty(self, cmd, offset, not nonatomic)
+            local _, offset, typeEnc, cType = runtime.getIvarInfo(self, ivarName)
+            if runtime.ffi.typeof(cType) == runtime.idType then
+                return runtime.C.objc_getProperty(self, cmd, offset, not nonatomic)
             else 
-                local src = ffi.cast(cType.."*", self + offset)
-                local dst = ffi.new(cType.."[1]")
-                local ffiType = ffi.typeof(cType)
-                return C.objc_copyStruct(dst, src, ffi.sizeof(ffiType), not nonatomic, false)
+                local src = runtime.ffi.cast(cType.."*", self + offset)
+                local dst = runtime.ffi.new(cType.."[1]")
+                local ffiType = runtime.ffi.typeof(cType)
+                return runtime.C.objc_copyStruct(dst, src, runtime.ffi.sizeof(ffiType), not nonatomic, false)
             end
         end, attributes["typeEncoding"].."@:")
         index = index + 1
@@ -789,15 +764,13 @@ function objc.addProperty(class, name, attributes)
     if attributes["ivarName"] then
         attrs[index].name = "V"
         attrs[index].value = attributes["ivarName"]
-    else 
-        attrs[index].name = "V"
-        attrs[index].value = ivarName
-        local ivar, offset, typeEnc, cType  = _getIvarInfo(self, ivarName)
+    else
+        local ivar, offset, typeEnc, cType = _getIvarInfo(self, ivarName)
         if ivar == nil then
             local typeArr = objc.parseTypeEncoding(attributes["typeEncoding"])
             if typeArr ~= nil and #typeArr == 1 then
                 local cType = objc.typeToCType(typeArr[1])
-                if cType then
+                if cType ~= nil then
                     local ffiType = ffi.typeof(cType)
                     local size = ffi.sizeof(ffiType)
                     local alignment = ffi.alignof(ffiType)
@@ -807,6 +780,34 @@ function objc.addProperty(class, name, attributes)
         end
     end
     C.class_addProperty(class, name, attrs, count)
+end
+
+-- Creates and returns a new subclass of superclass (or if superclass is nil, a new root class)
+-- ivars argument is an optional table of ivars, keyed by name with values containing the type encoding for the var
+function objc.createClass(superclass, className, ivars, properties)
+    ivars = ivars or {}
+    local class = C.objc_allocateClassPair(superclass, className, 0)
+
+    for name, typeEnc in pairs(ivars) do
+        -- Parse the type and get the size
+        local typeArr = objc.parseTypeEncoding(typeEnc)
+        if typeArr ~= nil and #typeArr == 1 then
+            local cType = objc.typeToCType(typeArr[1])
+            if cType ~= nil then
+                local ffiType = ffi.typeof(cType)
+                local size = ffi.sizeof(ffiType)
+                local alignment = ffi.alignof(ffiType)
+                C.class_addIvar(class, name, size, alignment, typeEnc)
+            end
+        end
+    end
+
+    for name, attributes in pairs(properties) do
+        addProperty(class, name, attributes)
+    end
+
+    C.objc_registerClassPair(class)
+    return class
 end
 
 -- Calls the superclass's implementation of a method
@@ -824,6 +825,55 @@ function objc.swizzle(class, origSel, newSel)
         C.class_replaceMethod(class, newSel, C.method_getImplementation(origMethod), C.method_getTypeEncoding(origMethod));
     else
         C.method_exchangeImplementations(origMethod, newMethod)
+    end
+end
+
+local upvalueType = ffi.typeof("enum DynamUpvalueType")
+local NSInteger = ffi.typeof("NSInteger")
+local NSUInteger = ffi.typeof("NSUInteger")
+
+function ctype(value)
+    return string.sub(tostring(objc.ffi.typeof(value)), 7, -2)
+end
+
+function dumpLambdaUpvalues(lambda, upvalues)
+    local i = 1
+    while true do
+        local name, value = debug.getupvalue(lambda, i)
+        if not name then
+            break
+        end
+        local upvalue = objc.DynamUpvalue:alloc():init()
+        upvalue:setIndex(i)
+        upvalue:setName(objc.Obj(name))
+        if type(value) == "cdata" then
+            if ffi.istype(_idType, value) then
+                upvalue:setValue(value)
+                upvalue:setType(upvalueType("kDynamUpvalueTypeObject"))
+            elseif ffi.istype(NSInteger, value) then
+                upvalue:setValue(objc.NSNumber:alloc():initWithInteger(value))
+                upvalue:setType(upvalueType("kDynamUpvalueTypeInteger"))
+            elseif ffi.istype(NSUInteger, value) then
+                upvalue:setValue(objc.NSNumber:alloc():initWithUnsignedInteger(value))
+                upvalue:setType(upvalueType("kDynamUpvalueTypeUInteger"))
+            else
+                local data = objc.NSData:dataWithBytes_length(value, ffi.sizeof(value))
+                upvalue:setValue(data)
+                upvalue:setCType(objc.Obj(ctype(value)))
+                upvalue:setType(upvalueType("kDynamUpvalueTypeBytes"))
+            end
+        elseif type(value) == "boolean" then
+            upvalue:setValue(objc.NSNumber:alloc():initWithBool(value))
+            upvalue:setType(upvalueType("kDynamUpvalueTypeBoolean"))
+        elseif type(value) == "number" then
+            upvalue:setValue(objc.Obj(value))
+            upvalue:setType(upvalueType("kDynamUpvalueTypeDouble"))
+        elseif type(value) == "string" then
+            upvalue:setValue(objc.Obj(value))
+            upvalue:setType(upvalueType("kDynamUpvalueTypeString"))
+        end
+        upvalues:addObject(upvalue)
+        i = i + 1
     end
 end
 
@@ -864,8 +914,11 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
 
     -- TODO 序列化lambda
     local code = string.dump(lambda)
-    local data = objc.NSData:dataWithBytes_length_(ffi.cast("void *", code), string.len(code))
-    class:__setLuaLambda_forKey_(data, objc.Obj(objc.selToStr(selector)))
+    local codeData = objc.NSData:dataWithBytes_length_(ffi.cast("void *", code), string.len(code))
+    local upvalues = objc.NSMutableArray:array()
+    dumpLambdaUpvalues(lambda, upvalues)
+    local dynamMethod = objc.DynamMethod:alloc():initWithCode_upvalues(codeData, upvalues)
+    class:__setLuaLambda_forKey_(dynamMethod, objc.Obj(objc.selToStr(selector)))
 
     C.class_replaceMethod(class, selector, msgForwardIMP, typeEncoding)
 end
@@ -914,55 +967,10 @@ function objc.createBlock(lambda, typeEncoding)
     return block
 end
 
-local upvalueType = ffi.typeof("enum BlockUpvalueType")
-local NSInteger = ffi.typeof("NSInteger")
-local NSUInteger = ffi.typeof("NSUInteger")
-
-function ctype(value)
-    return string.sub(tostring(objc.ffi.typeof(value)), 7, -2)
-end
-
 function objc.dumpBlockUpvalues(lambda)
     local context = C.get_current_luacontext()
     local upvalues = context:returnRegister()
-    local i = 1
-    while true do
-        local name, value = debug.getupvalue(lambda, i)
-        if not name then
-            break
-        end
-        local upvalue = objc.BlockUpvalue:alloc():init()
-        upvalue:setIndex(i)
-        upvalue:setName(objc.Obj(name))
-        if type(value) == "cdata" then
-            if ffi.istype(_idType, value) then
-                upvalue:setValue(value)
-                upvalue:setType(upvalueType("kBlockUpvalueTypeObject"))
-            elseif ffi.istype(NSInteger, value) then
-                upvalue:setValue(objc.NSNumber:alloc():initWithInteger(value))
-                upvalue:setType(upvalueType("kBlockUpvalueTypeInteger"))
-            elseif ffi.istype(NSUInteger, value) then
-                upvalue:setValue(objc.NSNumber:alloc():initWithUnsignedInteger(value))
-                upvalue:setType(upvalueType("kBlockUpvalueTypeUInteger"))
-            else
-                local data = objc.NSData:dataWithBytes_length(value, ffi.sizeof(value))
-                upvalue:setValue(data)
-                upvalue:setCType(objc.Obj(ctype(value)))
-                upvalue:setType(upvalueType("kBlockUpvalueTypeBytes"))
-            end
-        elseif type(value) == "boolean" then
-            upvalue:setValue(objc.NSNumber:alloc():initWithBool(value))
-            upvalue:setType(upvalueType("kBlockUpvalueTypeBoolean"))
-        elseif type(value) == "number" then
-            upvalue:setValue(objc.Obj(value))
-            upvalue:setType(upvalueType("kBlockUpvalueTypeDouble"))
-        elseif type(value) == "string" then
-            upvalue:setValue(objc.Obj(value))
-            upvalue:setType(upvalueType("kBlockUpvalueTypeString"))
-        end
-        upvalues:addObject(upvalue)
-        i = i + 1
-    end
+    dumpLambdaUpvalues(lambda, upvalues)
 end
 
 function objc.evaluateBlock(lambda)
@@ -989,9 +997,38 @@ function objc.evaluateBlock(lambda)
     if typeArr ~= nil and #typeArr == 1 then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
-            cType = cType .. "[1]"
-            local ret = ffi.new(cType, {lambda(unpack(arguments))})
-            invocation:setReturnValue_(ret)
+            local ret = lambda(unpack(arguments))
+            if returnType ~= "v" then
+                cType = cType .. "[1]"
+                local ret = ffi.new(cType, {ret})
+                invocation:setReturnValue_(ret)
+            end
+        end
+    end
+end
+
+function setLambdaUpvalues(lambda, upvalues)
+    for i = 0, tonumber(upvalues:count()) - 1 do
+        local upvalue = upvalues:objectAtIndex(i)
+        if upvalue:type() == upvalueType("kDynamUpvalueTypeObject") then
+            local value = upvalue:value();
+            value:retain()
+            ffi.gc(value, _release)
+            debug.setupvalue(lambda, tonumber(upvalue:index()), value)
+        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeDouble") then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), tonumber(upvalue:value():doubleValue()))
+        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeInteger") then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():integerValue())
+        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeUInteger") then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():unsignedIntegerValue())
+        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeBoolean") then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():boolValue())
+        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeString") then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), ffi.string(upvalue:value():UTF8String()))
+        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeBytes") then
+            local data = ffi.new(ffi.string(upvalue:cType():UTF8String()))
+            ffi.copy(data, upvalue:value():bytes(), tonumber(upvalue:value():length()))
+            debug.setupvalue(lambda, tonumber(upvalue:index()), data)
         end
     end
 end
@@ -1021,40 +1058,22 @@ function objc.evaluateBlockCode(codeData, len)
     if typeArr ~= nil and #typeArr == 1 then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
-            cType = cType .. "[1]"
             local lambda = loadstring(ffi.string(codeData, len))
-            for i = 0, tonumber(upvalues:count()) - 1 do
-                local upvalue = upvalues:objectAtIndex(i)
-                if upvalue:type() == upvalueType("kBlockUpvalueTypeObject") then
-                    local value = upvalue:value();
-                    value:retain()
-                    ffi.gc(value, _release)
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), value)
-                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeDouble") then
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), tonumber(upvalue:value():doubleValue()))
-                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeInteger") then
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():integerValue())
-                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeUInteger") then
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():unsignedIntegerValue())
-                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeBoolean") then
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():boolValue())
-                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeString") then
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), ffi.string(upvalue:value():UTF8String()))
-                elseif upvalue:type() == upvalueType("kBlockUpvalueTypeBytes") then
-                    local data = ffi.new(ffi.string(upvalue:cType():UTF8String()))
-                    ffi.copy(data, upvalue:value():bytes(), tonumber(upvalue:value():length()))
-                    debug.setupvalue(lambda, tonumber(upvalue:index()), data)
-                end
+            setLambdaUpvalues(lambda, upvalues)
+            local ret = lambda(unpack(arguments))
+            if returnType ~= "v" then
+                cType = cType .. "[1]"
+                local ret = ffi.new(cType, {ret})
+                invocation:setReturnValue_(ret)
             end
-            local ret = ffi.new(cType, {lambda(unpack(arguments))})
-            invocation:setReturnValue_(ret)
         end
     end
 end
 
 function objc.evaluateMethod(codeData, len)
     local context = C.get_current_luacontext()
-    local invocation = context:argumentRegister()
+    local upvalues = context:argumentRegister():objectAtIndex(0)
+    local invocation = context:argumentRegister():objectAtIndex(1)
     local methodSignature = invocation:methodSignature()
     local numberOfArguments = tonumber(methodSignature:numberOfArguments())
     local arguments = {invocation:target(), invocation:selector()}
@@ -1066,6 +1085,7 @@ function objc.evaluateMethod(codeData, len)
             if cType ~= nil then
                 cType = cType .. "[1]";
                 local arg = ffi.new(cType)
+                print(ffi.sizeof(arg[0]))
                 invocation:getArgument_atIndex_(arg, i)
                 table.insert(arguments, arg[0])
             end
@@ -1076,9 +1096,15 @@ function objc.evaluateMethod(codeData, len)
     if typeArr ~= nil and #typeArr == 1 then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
-            cType = cType .. "[1]"
-            local ret = ffi.new(cType, {loadstring(ffi.string(codeData, len))(unpack(arguments))})
-            invocation:setReturnValue_(ret)
+            
+            local lambda = loadstring(ffi.string(codeData, len))
+            setLambdaUpvalues(lambda, upvalues)
+            local ret = lambda(unpack(arguments))
+            if returnType ~= "v" then
+                cType = cType .. "[1]"
+                local ret = ffi.new(cType, {ret})
+                invocation:setReturnValue_(ret)
+            end
         end
     end
 end

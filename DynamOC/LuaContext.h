@@ -25,16 +25,16 @@
 @end
 
 @class DynamBlock;
-@class BlockUpvalue;
+@class DynamUpvalue;
 
 void forward_invocation(id target, SEL selector, id invocation);
 void forward_block_id_invocation(NSInteger blockID, id invocation);
-void forward_block_code_invocation(NSData *code, NSArray<BlockUpvalue *> *upvalues, id invocation);
+void forward_block_code_invocation(NSData *code, NSArray<DynamUpvalue *> *upvalues, id invocation);
 LuaContext *get_luacontext(NSThread *thread);
 LuaContext *get_current_luacontext();
 void push_luacontext(LuaContext *context);
 void pop_luacontext();
 void free_block(NSInteger blockID);
 NSData *dump_block_code(NSInteger blockID);
-NSArray<BlockUpvalue *> *dump_block_upvalue(NSInteger blockID);
+NSArray<DynamUpvalue *> *dump_block_upvalue(NSInteger blockID);
 

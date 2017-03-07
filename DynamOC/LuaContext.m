@@ -9,6 +9,7 @@
 #import "LuaContext.h"
 #import "NSObject+DynamOC.h"
 #import "DynamBlock.h"
+#import "DynamMethod.h"
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -141,7 +142,7 @@ static int register_lambda(lua_State *L)
     return NO;
 }
 
-- (BOOL)forwardMethodInvocation:(NSData *)script
+- (BOOL)forwardMethodInvocation:(DynamMethod *)method
 {
     lua_getglobal(_L, "debug");
     lua_getfield(_L, -1, "traceback");
@@ -149,8 +150,8 @@ static int register_lambda(lua_State *L)
     lua_getglobal(_L, "runtime");
     lua_getfield(_L, -1, "evaluateMethod");
     lua_replace(_L, -2);
-    lua_pushlightuserdata(_L, script.bytes);
-    lua_pushnumber(_L, script.length);
+    lua_pushlightuserdata(_L, method.codeDump.bytes);
+    lua_pushnumber(_L, method.codeDump.length);
     if(lua_pcall(_L, 2, 0, -4)) {
         NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
         lua_pop(_L, 2);
@@ -239,12 +240,12 @@ static int register_lambda(lua_State *L)
 void forward_invocation(NSObject *target, SEL selector, NSInvocation *invocation)
 {
     @autoreleasepool {
-        LuaContext *context = get_current_luacontext();
-        context.argumentRegister = invocation;
-        NSData *luaCodeData = [[target.class __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(invocation.selector)]];
+        DynamMethod *method = [[target.class __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(invocation.selector)]];
         SEL sel = NSSelectorFromString(@"__forwardInvocation:");
-        if(luaCodeData) {
-            [context forwardMethodInvocation:luaCodeData];
+        if(method) {
+            LuaContext *context = get_current_luacontext();
+            context.argumentRegister = @[method.upvalueDump, invocation];
+            [context forwardMethodInvocation:method];
         } else if([target respondsToSelector:sel]) {
             [target performSelector:sel withObject:invocation];
         }
@@ -260,7 +261,7 @@ void forward_block_id_invocation(NSInteger callId, id invocation)
     }
 }
 
-void forward_block_code_invocation(NSData *code, NSArray<BlockUpvalue *> *upvalues, id invocation)
+void forward_block_code_invocation(NSData *code, NSArray<DynamUpvalue *> *upvalues, id invocation)
 {
     @autoreleasepool {
         LuaContext *context = get_current_luacontext();
@@ -321,7 +322,7 @@ NSData *dump_block_code(NSInteger blockID)
     }
 }
 
-NSArray<BlockUpvalue *> *dump_block_upvalue(NSInteger blockID)
+NSArray<DynamUpvalue *> *dump_block_upvalue(NSInteger blockID)
 {
     @autoreleasepool {
         LuaContext *context = get_current_luacontext();
