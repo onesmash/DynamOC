@@ -298,6 +298,27 @@ local function _parseStructOrUnionEncoding(encoded, isUnion)
     end
 end
 
+local CGFloatEncode
+local NSIntegerEncode
+local NSUIntegerEncode
+if ffi.abi("64bit") then
+    CGFloatEncode = "d"
+    NSIntegerEncode = "q"
+    NSUIntegerEncode = "Q"
+else
+    CGFloatEncode = "f"
+    NSIntegerEncode = "l"
+    NSUIntegerEncode = "L"
+end
+local CGPointEncode = "{CGPoint="..CGFloatEncode..CGFloatEncode.."}"
+local CGSizeEncode = "{CGSize="..CGFloatEncode..CGFloatEncode.."}"
+local CGRectEncode = "{CGRect="..CGPointEncode..CGSizeEncode.."}"
+local UIEdgeInsetsEncode = "{UIEdgeInsets="..CGFloatEncode..CGFloatEncode..CGFloatEncode..CGFloatEncode.."}"
+
+objc.encode = {["CGFloat"] = CGFloatEncode, ["NSInteger"] = NSIntegerEncode, 
+                ["NSUInteger"] = NSUIntegerEncode, ["CGPoint"] = CGPointEncode,
+                ["CGSize"] = CGSizeEncode, ["UIEdgeInsets"] = UIEdgeInsetsEncode }
+
 -- Takes a type table (contains type info for a single type, obtained using parseTypeEncoding), and converts it to a  c signature
 -- The optional second argument specifies whether or not 
 local _typeEncodings = {
@@ -729,7 +750,7 @@ function addProperty(class, name, attributes)
                     if runtime.ffi.istype(runtime.idType, value) then
                         runtime.ffi.C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy or value:isKindOfClass(objc.NSBlock))
                     else 
-                        local src = runtime.ffi.cast(cType.."[1]", value)
+                        local src = runtime.ffi.cast(cType.."*", value)
                         local dst = runtime.ffi.cast(cType.."*", self + offset)
                         runtime.ffi.C.objc_copyStruct(dst, src, runtime.ffi.sizeof(value), not nonatomic, false)
                     end
@@ -755,7 +776,8 @@ function addProperty(class, name, attributes)
                 local src = runtime.ffi.cast(cType.."*", self + offset)
                 local dst = runtime.ffi.new(cType.."[1]")
                 local ffiType = runtime.ffi.typeof(cType)
-                return runtime.C.objc_copyStruct(dst, src, runtime.ffi.sizeof(ffiType), not nonatomic, false)
+                runtime.C.objc_copyStruct(dst, src, runtime.ffi.sizeof(ffiType), not nonatomic, false)
+                return dst[0]
             end
         end, attributes["typeEncoding"].."@:")
         index = index + 1
@@ -1085,7 +1107,6 @@ function objc.evaluateMethod(codeData, len)
             if cType ~= nil then
                 cType = cType .. "[1]";
                 local arg = ffi.new(cType)
-                print(ffi.sizeof(arg[0]))
                 invocation:getArgument_atIndex_(arg, i)
                 table.insert(arguments, arg[0])
             end
