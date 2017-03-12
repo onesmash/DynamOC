@@ -317,7 +317,9 @@ local UIEdgeInsetsEncode = "{UIEdgeInsets="..CGFloatEncode..CGFloatEncode..CGFlo
 
 objc.encode = {["CGFloat"] = CGFloatEncode, ["NSInteger"] = NSIntegerEncode, 
                 ["NSUInteger"] = NSUIntegerEncode, ["CGPoint"] = CGPointEncode,
-                ["CGSize"] = CGSizeEncode, ["UIEdgeInsets"] = UIEdgeInsetsEncode }
+                ["CGSize"] = CGSizeEncode, ["UIEdgeInsets"] = UIEdgeInsetsEncode,
+                ["id"] = "@", ["void"] = "v", ["block"] = "@",
+                ["SEL"] = ":", ["Class"] = "#" }
 
 -- Takes a type table (contains type info for a single type, obtained using parseTypeEncoding), and converts it to a  c signature
 -- The optional second argument specifies whether or not 
@@ -431,7 +433,11 @@ function objc.Obj(v)
     return nil
 end
 function objc.NSStr(aStr)
-    return objc.NSString:stringWithUTF8String_(ffi.cast("char*", aStr))
+    --print(aStr)
+    --local cStr = ffi.new("char[?]", #aStr + 1, 0)
+    --ffi.copy(cStr, aStr, #aStr)
+    --print(ffi.string(cStr))
+    return objc.NSString:alloc():initWithUTF8String(ffi.cast("char *", aStr))
 end
 function objc.NSNum(aNum)
     return objc.NSNumber:numberWithDouble(aNum)
@@ -506,6 +512,7 @@ end
 -- just an ugly getter to make it nicer to work with arrays in the repl. (Don't use this in your actual code please,
 -- I'll remove it when a better way presents itself)
 local function _getter(self, key)
+    print(key)
     local idx = tonumber(key)
     if idx ~= nil then
         return self:objectAtIndex(idx)
@@ -851,6 +858,13 @@ function objc.swizzle(class, origSel, newSel)
 end
 
 local upvalueType = ffi.typeof("enum DynamUpvalueType")
+local kDynamUpvalueTypeDouble = ffi.cast(upvalueType, "kDynamUpvalueTypeDouble")
+local kDynamUpvalueTypeInteger = ffi.cast(upvalueType, "kDynamUpvalueTypeInteger")
+local kDynamUpvalueTypeUInteger = ffi.cast(upvalueType, "kDynamUpvalueTypeUInteger")
+local kDynamUpvalueTypeBoolean = ffi.cast(upvalueType, "kDynamUpvalueTypeBoolean")
+local kDynamUpvalueTypeString = ffi.cast(upvalueType, "kDynamUpvalueTypeString")
+local kDynamUpvalueTypeBytes = ffi.cast(upvalueType, "kDynamUpvalueTypeBytes")
+local kDynamUpvalueTypeObject = ffi.cast(upvalueType, "kDynamUpvalueTypeObject")
 local NSInteger = ffi.typeof("NSInteger")
 local NSUInteger = ffi.typeof("NSUInteger")
 
@@ -871,28 +885,28 @@ function dumpLambdaUpvalues(lambda, upvalues)
         if type(value) == "cdata" then
             if ffi.istype(_idType, value) then
                 upvalue:setValue(value)
-                upvalue:setType(upvalueType("kDynamUpvalueTypeObject"))
+                upvalue:setType(kDynamUpvalueTypeObject)
             elseif ffi.istype(NSInteger, value) then
                 upvalue:setValue(objc.NSNumber:alloc():initWithInteger(value))
-                upvalue:setType(upvalueType("kDynamUpvalueTypeInteger"))
+                upvalue:setType(kDynamUpvalueTypeInteger)
             elseif ffi.istype(NSUInteger, value) then
                 upvalue:setValue(objc.NSNumber:alloc():initWithUnsignedInteger(value))
-                upvalue:setType(upvalueType("kDynamUpvalueTypeUInteger"))
+                upvalue:setType(kDynamUpvalueTypeUInteger)
             else
                 local data = objc.NSData:dataWithBytes_length(value, ffi.sizeof(value))
                 upvalue:setValue(data)
                 upvalue:setCType(objc.Obj(ctype(value)))
-                upvalue:setType(upvalueType("kDynamUpvalueTypeBytes"))
+                upvalue:setType(kDynamUpvalueTypeBytes)
             end
         elseif type(value) == "boolean" then
             upvalue:setValue(objc.NSNumber:alloc():initWithBool(value))
-            upvalue:setType(upvalueType("kDynamUpvalueTypeBoolean"))
+            upvalue:setType(kDynamUpvalueTypeBoolean)
         elseif type(value) == "number" then
             upvalue:setValue(objc.Obj(value))
-            upvalue:setType(upvalueType("kDynamUpvalueTypeDouble"))
+            upvalue:setType(kDynamUpvalueTypeDouble)
         elseif type(value) == "string" then
             upvalue:setValue(objc.Obj(value))
-            upvalue:setType(upvalueType("kDynamUpvalueTypeString"))
+            upvalue:setType(kDynamUpvalueTypeString)
         end
         upvalues:addObject(upvalue)
         i = i + 1
@@ -985,8 +999,7 @@ end
 
 function objc.createBlock(lambda, typeEncoding)
     local id = objc.registerLambda(lambda)
-    local block = objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
-    return block
+    return objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
 end
 
 function objc.dumpBlockUpvalues(lambda)
@@ -1032,22 +1045,22 @@ end
 function setLambdaUpvalues(lambda, upvalues)
     for i = 0, tonumber(upvalues:count()) - 1 do
         local upvalue = upvalues:objectAtIndex(i)
-        if upvalue:type() == upvalueType("kDynamUpvalueTypeObject") then
+        if upvalue:type() == kDynamUpvalueTypeObject then
             local value = upvalue:value();
             value:retain()
             ffi.gc(value, _release)
             debug.setupvalue(lambda, tonumber(upvalue:index()), value)
-        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeDouble") then
+        elseif upvalue:type() == kDynamUpvalueTypeDouble then
             debug.setupvalue(lambda, tonumber(upvalue:index()), tonumber(upvalue:value():doubleValue()))
-        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeInteger") then
+        elseif upvalue:type() == kDynamUpvalueTypeInteger then
             debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():integerValue())
-        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeUInteger") then
+        elseif upvalue:type() == kDynamUpvalueTypeUInteger then
             debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():unsignedIntegerValue())
-        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeBoolean") then
+        elseif upvalue:type() == kDynamUpvalueTypeBoolean then
             debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():boolValue())
-        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeString") then
+        elseif upvalue:type() == kDynamUpvalueTypeString then
             debug.setupvalue(lambda, tonumber(upvalue:index()), ffi.string(upvalue:value():UTF8String()))
-        elseif upvalue:type() == upvalueType("kDynamUpvalueTypeBytes") then
+        elseif upvalue:type() == kDynamUpvalueTypeBytes then
             local data = ffi.new(ffi.string(upvalue:cType():UTF8String()))
             ffi.copy(data, upvalue:value():bytes(), tonumber(upvalue:value():length()))
             debug.setupvalue(lambda, tonumber(upvalue:index()), data)

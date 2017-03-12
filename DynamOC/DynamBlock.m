@@ -118,6 +118,7 @@ static void dispose_block(const void *block);
             if(!self.syncDispatch) {
                 [self performSelector:@selector(dumpBlockTo:) onThread:self.createThread withObject:self waitUntilDone:YES];
                 forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
+                CFRelease((__bridge CFTypeRef)(self));
             } else {
                 push_luacontext(get_luacontext(self.createThread));
                 forward_block_id_invocation(self.blockID, invocation);

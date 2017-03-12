@@ -24,6 +24,5 @@ struct BlockDescriptor {
 @property (nonatomic, copy) NSString *signature;
 @property (nonatomic, assign) BOOL syncDispatch;
 
-- (instancetype)initWithBlock:(id)block;
 - (instancetype)initWithBlockID:(NSInteger)callId signature:(NSString *)sig;
 @end

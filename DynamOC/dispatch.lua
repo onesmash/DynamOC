@@ -51,6 +51,7 @@ dispatch.get_global_queue                = lib.dispatch_get_global_queue
 function dispatch.async(queue, lambda)
     local block = runtime.createBlock(lambda, "@")
     block:setSyncDispatch(false)
+    block:retain()
     lib.dispatch_async(queue, block)
 end
 
