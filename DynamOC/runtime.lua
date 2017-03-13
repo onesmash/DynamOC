@@ -437,7 +437,7 @@ function objc.NSStr(aStr)
     --local cStr = ffi.new("char[?]", #aStr + 1, 0)
     --ffi.copy(cStr, aStr, #aStr)
     --print(ffi.string(cStr))
-    return objc.NSString:alloc():initWithUTF8String(ffi.cast("char *", aStr))
+    return objc.NSString:alloc():initWithUTF8String_(ffi.cast("char *", aStr))
 end
 function objc.NSNum(aNum)
     return objc.NSNumber:numberWithDouble(aNum)
@@ -512,7 +512,6 @@ end
 -- just an ugly getter to make it nicer to work with arrays in the repl. (Don't use this in your actual code please,
 -- I'll remove it when a better way presents itself)
 local function _getter(self, key)
-    print(key)
     local idx = tonumber(key)
     if idx ~= nil then
         return self:objectAtIndex(idx)
@@ -626,7 +625,6 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
 
         -- Else, load the method
         local selStr = _selectorFromSelArg(selArg)
-
         local imp
         local methodDesc = C.class_getInstanceMethod(C.object_getClass(self), SEL(selStr))
         if methodDesc ~= nil then
@@ -880,35 +878,35 @@ function dumpLambdaUpvalues(lambda, upvalues)
             break
         end
         local upvalue = objc.DynamUpvalue:alloc():init()
-        upvalue:setIndex(i)
-        upvalue:setName(objc.Obj(name))
+        upvalue:setIndex_(i)
+        upvalue:setName_(objc.Obj(name))
         if type(value) == "cdata" then
             if ffi.istype(_idType, value) then
-                upvalue:setValue(value)
-                upvalue:setType(kDynamUpvalueTypeObject)
+                upvalue:setValue_(value)
+                upvalue:setType_(kDynamUpvalueTypeObject)
             elseif ffi.istype(NSInteger, value) then
-                upvalue:setValue(objc.NSNumber:alloc():initWithInteger(value))
-                upvalue:setType(kDynamUpvalueTypeInteger)
+                upvalue:setValue_(objc.NSNumber:alloc():initWithInteger_(value))
+                upvalue:setType_(kDynamUpvalueTypeInteger)
             elseif ffi.istype(NSUInteger, value) then
-                upvalue:setValue(objc.NSNumber:alloc():initWithUnsignedInteger(value))
-                upvalue:setType(kDynamUpvalueTypeUInteger)
+                upvalue:setValue_(objc.NSNumber:alloc():initWithUnsignedInteger_(value))
+                upvalue:setType_(kDynamUpvalueTypeUInteger)
             else
-                local data = objc.NSData:dataWithBytes_length(value, ffi.sizeof(value))
-                upvalue:setValue(data)
-                upvalue:setCType(objc.Obj(ctype(value)))
-                upvalue:setType(kDynamUpvalueTypeBytes)
+                local data = objc.NSData:dataWithBytes_length_(value, ffi.sizeof(value))
+                upvalue:setValue_(data)
+                upvalue:setCType_(objc.Obj(ctype(value)))
+                upvalue:setType_(kDynamUpvalueTypeBytes)
             end
         elseif type(value) == "boolean" then
-            upvalue:setValue(objc.NSNumber:alloc():initWithBool(value))
-            upvalue:setType(kDynamUpvalueTypeBoolean)
+            upvalue:setValue_(objc.NSNumber:alloc():initWithBool_(value))
+            upvalue:setType_(kDynamUpvalueTypeBoolean)
         elseif type(value) == "number" then
-            upvalue:setValue(objc.Obj(value))
-            upvalue:setType(kDynamUpvalueTypeDouble)
+            upvalue:setValue_(objc.Obj(value))
+            upvalue:setType_(kDynamUpvalueTypeDouble)
         elseif type(value) == "string" then
-            upvalue:setValue(objc.Obj(value))
-            upvalue:setType(kDynamUpvalueTypeString)
+            upvalue:setValue_(objc.Obj(value))
+            upvalue:setType_(kDynamUpvalueTypeString)
         end
-        upvalues:addObject(upvalue)
+        upvalues:addObject_(upvalue)
         i = i + 1
     end
 end
@@ -953,7 +951,7 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     local codeData = objc.NSData:dataWithBytes_length_(ffi.cast("void *", code), string.len(code))
     local upvalues = objc.NSMutableArray:array()
     dumpLambdaUpvalues(lambda, upvalues)
-    local dynamMethod = objc.DynamMethod:alloc():initWithCode_upvalues(codeData, upvalues)
+    local dynamMethod = objc.DynamMethod:alloc():initWithCode_upvalues_(codeData, upvalues)
     class:__setLuaLambda_forKey_(dynamMethod, objc.Obj(objc.selToStr(selector)))
 
     C.class_replaceMethod(class, selector, msgForwardIMP, typeEncoding)
@@ -981,7 +979,7 @@ end
 
 function objc.weak(obj)
     if type(obj) == "cdata" and ffi.istype(_idType, obj) then
-        return objc.WeakObject:alloc():initWithObject(obj)
+        return objc.WeakObject:alloc():initWithObject_(obj)
     else
         return obj
     end
@@ -989,7 +987,7 @@ end
 
 function objc.strong(obj)
     if type(obj) == "cdata" and ffi.istype(_idType, obj) then
-        if obj:isKindOfClass(objc.WeakObject) then
+        if obj:isKindOfClass_(objc.WeakObject) then
             return obj:object()
         end
     else
@@ -1070,8 +1068,8 @@ end
 
 function objc.evaluateBlockCode(codeData, len)
     local context = C.get_current_luacontext()
-    local upvalues = context:argumentRegister():objectAtIndex(0)
-    local invocation = context:argumentRegister():objectAtIndex(1)
+    local upvalues = context:argumentRegister():objectAtIndex_(0)
+    local invocation = context:argumentRegister():objectAtIndex_(1)
     local methodSignature = invocation:methodSignature()
     local numberOfArguments = tonumber(methodSignature:numberOfArguments())
     local arguments = {}
@@ -1107,8 +1105,8 @@ end
 
 function objc.evaluateMethod(codeData, len)
     local context = C.get_current_luacontext()
-    local upvalues = context:argumentRegister():objectAtIndex(0)
-    local invocation = context:argumentRegister():objectAtIndex(1)
+    local upvalues = context:argumentRegister():objectAtIndex_(0)
+    local invocation = context:argumentRegister():objectAtIndex_(1)
     local methodSignature = invocation:methodSignature()
     local numberOfArguments = tonumber(methodSignature:numberOfArguments())
     local arguments = {invocation:target(), invocation:selector()}
