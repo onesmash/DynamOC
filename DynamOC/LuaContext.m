@@ -16,6 +16,8 @@
 
 #define kThreadLocalLuaContextKey @"kThreadLocalLuaContextKey"
 
+NSInteger kInvalidMethodID = -1;
+
 static int buf_writer( lua_State *L, const void* b, size_t n, void *B ) {
     luaL_addlstring((luaL_Buffer *)B, (const char *)b, n);
     return 0;
@@ -29,11 +31,34 @@ static int register_lambda(lua_State *L)
     return 1;
 }
 
+@interface DynamMethodCache : NSObject {
+}
+
+@property (nonatomic, weak) NSThread *thread;
+@property (nonatomic, assign) NSInteger methodID;
+
+@end
+
+@implementation DynamMethodCache
+
+- (void)dealloc
+{
+    [self performSelector:@selector(cleanup) onThread:self.thread withObject:nil waitUntilDone:YES];
+}
+
+- (void)cleanup
+{
+    free_method(_methodID);
+}
+
+@end
+
 @interface LuaContext () {
     lua_State *_L;
 }
 
 @property (nonatomic, weak) NSThread *thread;
+@property (nonatomic, strong) NSCache *methodCache;
 
 @end
 
@@ -101,6 +126,7 @@ static int register_lambda(lua_State *L)
     self = [super init];
     if(self) {
         self.thread = [NSThread currentThread];
+        _methodCache = [[NSCache alloc] init];
         _L = luaL_newstate();
         if(_L) {
             luaL_openlibs(_L );
@@ -151,7 +177,33 @@ static int register_lambda(lua_State *L)
     return NO;
 }
 
-- (BOOL)forwardMethodInvocation:(DynamMethod *)method
+- (BOOL)forwardMethodCodeInvocation:(DynamMethod *)method
+{
+    lua_getglobal(_L, "debug");
+    lua_getfield(_L, -1, "traceback");
+    lua_replace(_L, -2);
+    lua_getglobal(_L, "runtime");
+    lua_getfield(_L, -1, "evaluateMethodCode");
+    lua_replace(_L, -2);
+    lua_pushlightuserdata(_L, method.codeDump.bytes);
+    lua_pushnumber(_L, method.codeDump.length);
+    if(lua_pcall(_L, 2, 1, -4)) {
+        NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
+        lua_pop(_L, 2);
+        return NO;
+    }
+    NSInteger methodID = lua_tointeger(_L, -1);
+    lua_pop(_L, 2);
+    if(methodID != kInvalidMethodID) {
+        DynamMethodCache *methodCache = [[DynamMethodCache alloc] init];
+        methodCache.methodID = methodID;
+        methodCache.thread = [NSThread currentThread];
+        [self.methodCache setObject:methodCache forKey:method];
+    }
+    return YES;
+}
+
+- (BOOL)forwardMethodIDInvocation:(NSInteger)methodID
 {
     lua_getglobal(_L, "debug");
     lua_getfield(_L, -1, "traceback");
@@ -159,9 +211,8 @@ static int register_lambda(lua_State *L)
     lua_getglobal(_L, "runtime");
     lua_getfield(_L, -1, "evaluateMethod");
     lua_replace(_L, -2);
-    lua_pushlightuserdata(_L, method.codeDump.bytes);
-    lua_pushnumber(_L, method.codeDump.length);
-    if(lua_pcall(_L, 2, 0, -4)) {
+    lua_rawgeti(_L, LUA_REGISTRYINDEX, methodID);
+    if(lua_pcall(_L, 1, 0, -3)) {
         NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
         lua_pop(_L, 2);
         return NO;
@@ -205,6 +256,11 @@ static int register_lambda(lua_State *L)
     }
     lua_pop(_L, 1);
     return YES;
+}
+
+- (void)freeLuaMethod:(NSInteger)methodID
+{
+    lua_unref(_L, methodID);
 }
 
 - (void)freeLuaBlock:(NSInteger)blockID
@@ -253,8 +309,14 @@ void forward_invocation(NSObject *target, SEL selector, NSInvocation *invocation
         SEL sel = NSSelectorFromString(@"__forwardInvocation:");
         if(method) {
             LuaContext *context = get_current_luacontext();
-            context.argumentRegister = @[method.upvalueDump, invocation];
-            [context forwardMethodInvocation:method];
+            DynamMethodCache *methodCache = [context.methodCache objectForKey:method];
+            if(methodCache) {
+                context.argumentRegister = @[invocation];
+                [context forwardMethodIDInvocation:methodCache.methodID];
+            } else {
+                context.argumentRegister = @[method.upvalueDump, invocation];
+                [context forwardMethodCodeInvocation:method];
+            }
         } else if([target respondsToSelector:sel]) {
             [target performSelector:sel withObject:invocation];
         }
@@ -312,6 +374,14 @@ DynamBlock *create_block(NSInteger blockID, const char* signature)
     @autoreleasepool {
         DynamBlock *block = [[DynamBlock alloc] initWithBlockID:blockID signature:[NSString stringWithUTF8String:signature]];
         return block;
+    }
+}
+
+void free_method(NSInteger methodID)
+{
+    @autoreleasepool {
+        LuaContext *context = get_current_luacontext();
+        [context freeLuaMethod:methodID];
     }
 }
 

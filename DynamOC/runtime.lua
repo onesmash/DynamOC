@@ -118,6 +118,8 @@ enum DynamUpvalueType {
     kDynamUpvalueTypeBytes,
     kDynamUpvalueTypeObject
 };
+
+NSInteger kInvalidMethodID;
 ]]
 
 local C = ffi.C
@@ -1006,6 +1008,32 @@ function objc.dumpBlockUpvalues(lambda)
     dumpLambdaUpvalues(lambda, upvalues)
 end
 
+function setLambdaUpvalues(lambda, upvalues)
+    for i = 0, tonumber(upvalues:count()) - 1 do
+        local upvalue = upvalues:objectAtIndex(i)
+        if upvalue:type() == kDynamUpvalueTypeObject then
+            local value = upvalue:value();
+            value:retain()
+            ffi.gc(value, _release)
+            debug.setupvalue(lambda, tonumber(upvalue:index()), value)
+        elseif upvalue:type() == kDynamUpvalueTypeDouble then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), tonumber(upvalue:value():doubleValue()))
+        elseif upvalue:type() == kDynamUpvalueTypeInteger then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():integerValue())
+        elseif upvalue:type() == kDynamUpvalueTypeUInteger then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():unsignedIntegerValue())
+        elseif upvalue:type() == kDynamUpvalueTypeBoolean then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():boolValue())
+        elseif upvalue:type() == kDynamUpvalueTypeString then
+            debug.setupvalue(lambda, tonumber(upvalue:index()), ffi.string(upvalue:value():UTF8String()))
+        elseif upvalue:type() == kDynamUpvalueTypeBytes then
+            local data = ffi.new(ffi.string(upvalue:cType():UTF8String()))
+            ffi.copy(data, upvalue:value():bytes(), tonumber(upvalue:value():length()))
+            debug.setupvalue(lambda, tonumber(upvalue:index()), data)
+        end
+    end
+end
+
 function objc.evaluateBlock(lambda)
     local context = C.get_current_luacontext()
     local invocation = context:argumentRegister()
@@ -1036,32 +1064,6 @@ function objc.evaluateBlock(lambda)
                 local ret = ffi.new(cType, {ret})
                 invocation:setReturnValue_(ret)
             end
-        end
-    end
-end
-
-function setLambdaUpvalues(lambda, upvalues)
-    for i = 0, tonumber(upvalues:count()) - 1 do
-        local upvalue = upvalues:objectAtIndex(i)
-        if upvalue:type() == kDynamUpvalueTypeObject then
-            local value = upvalue:value();
-            value:retain()
-            ffi.gc(value, _release)
-            debug.setupvalue(lambda, tonumber(upvalue:index()), value)
-        elseif upvalue:type() == kDynamUpvalueTypeDouble then
-            debug.setupvalue(lambda, tonumber(upvalue:index()), tonumber(upvalue:value():doubleValue()))
-        elseif upvalue:type() == kDynamUpvalueTypeInteger then
-            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():integerValue())
-        elseif upvalue:type() == kDynamUpvalueTypeUInteger then
-            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():unsignedIntegerValue())
-        elseif upvalue:type() == kDynamUpvalueTypeBoolean then
-            debug.setupvalue(lambda, tonumber(upvalue:index()), upvalue:value():boolValue())
-        elseif upvalue:type() == kDynamUpvalueTypeString then
-            debug.setupvalue(lambda, tonumber(upvalue:index()), ffi.string(upvalue:value():UTF8String()))
-        elseif upvalue:type() == kDynamUpvalueTypeBytes then
-            local data = ffi.new(ffi.string(upvalue:cType():UTF8String()))
-            ffi.copy(data, upvalue:value():bytes(), tonumber(upvalue:value():length()))
-            debug.setupvalue(lambda, tonumber(upvalue:index()), data)
         end
     end
 end
@@ -1103,7 +1105,7 @@ function objc.evaluateBlockCode(codeData, len)
     end
 end
 
-function objc.evaluateMethod(codeData, len)
+function objc.evaluateMethodCode(codeData, len)
     local context = C.get_current_luacontext()
     local upvalues = context:argumentRegister():objectAtIndex_(0)
     local invocation = context:argumentRegister():objectAtIndex_(1)
@@ -1125,12 +1127,48 @@ function objc.evaluateMethod(codeData, len)
     end
     local returnType = ffi.string(methodSignature:methodReturnType())
     local typeArr = objc.parseTypeEncoding(returnType)
+    local methodID = C.kInvalidMethodID
     if typeArr ~= nil and #typeArr == 1 then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
-            
             local lambda = loadstring(ffi.string(codeData, len))
             setLambdaUpvalues(lambda, upvalues)
+            methodID = objc.registerLambda(lambda)
+            local ret = lambda(unpack(arguments))
+            if returnType ~= "v" then
+                cType = cType .. "[1]"
+                local ret = ffi.new(cType, {ret})
+                invocation:setReturnValue_(ret)
+            end
+        end
+    end
+    return methodID
+end
+
+function objc.evaluateMethod(lambda)
+    local context = C.get_current_luacontext()
+    local invocation = context:argumentRegister():objectAtIndex_(0)
+    local methodSignature = invocation:methodSignature()
+    local numberOfArguments = tonumber(methodSignature:numberOfArguments())
+    local arguments = {invocation:target(), invocation:selector()}
+    for i = 2, numberOfArguments - 1 do
+        local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
+        local typeArr = objc.parseTypeEncoding(argumentType)
+        if typeArr ~= nil and #typeArr == 1 then
+            local cType = objc.typeToCType(typeArr[1])
+            if cType ~= nil then
+                cType = cType .. "[1]";
+                local arg = ffi.new(cType)
+                invocation:getArgument_atIndex_(arg, i)
+                table.insert(arguments, arg[0])
+            end
+        end
+    end
+    local returnType = ffi.string(methodSignature:methodReturnType())
+    local typeArr = objc.parseTypeEncoding(returnType)
+    if typeArr ~= nil and #typeArr == 1 then
+        local cType = objc.typeToCType(typeArr[1])
+        if cType ~= nil then
             local ret = lambda(unpack(arguments))
             if returnType ~= "v" then
                 cType = cType .. "[1]"

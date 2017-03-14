@@ -34,6 +34,7 @@ LuaContext *get_luacontext(NSThread *thread);
 LuaContext *get_current_luacontext();
 void push_luacontext(LuaContext *context);
 void pop_luacontext();
+void free_method(NSInteger methodID);
 void free_block(NSInteger blockID);
 NSData *dump_block_code(NSInteger blockID);
 NSArray<DynamUpvalue *> *dump_block_upvalue(NSInteger blockID);
