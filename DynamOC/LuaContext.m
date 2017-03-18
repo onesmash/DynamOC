@@ -13,6 +13,7 @@
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
+#import <objc/runtime.h>
 
 #define kThreadLocalLuaContextKey @"kThreadLocalLuaContextKey"
 
@@ -30,6 +31,17 @@ static int register_lambda(lua_State *L)
     lua_pushinteger(L, closureId);
     return 1;
 }
+
+@interface DynamMethodDesc : NSObject
+
+@property (nonatomic, copy) NSString *methodTypeEncoding;
+@property (nonatomic, assign) SEL sel;
+@property (nonatomic, assign) BOOL isSpecialStructReturn;
+
+@end
+
+@implementation DynamMethodDesc
+@end
 
 @interface DynamMethodCache : NSObject {
 }
@@ -414,7 +426,8 @@ NSString *selectorStringFromMethodNameWithUnderscores(const char *name)
 {
     @autoreleasepool {
         NSInteger len = strlen(name);
-        char selName[len];
+        char selName[len + 1];
+        selName[len] = '\0';
         NSInteger colonIndex = len;
         for (NSInteger i = len - 1; i >= 0 ; i--) {
             char c = name[i];
@@ -428,5 +441,62 @@ NSString *selectorStringFromMethodNameWithUnderscores(const char *name)
             }
         }
         return [NSString stringWithUTF8String:selName];
+    }
+}
+
+DynamMethodDesc *dynamMethodDescFromMethodNameWithUnderscores(id object, const char *name, BOOL isClass)
+{
+    @autoreleasepool {
+        NSCache *cache = isClass ? [object __classMethodDescCache] : [[object class] __instanceMethodDescCache];
+        NSString *key = [NSString stringWithUTF8String:name];
+        DynamMethodDesc *desc = [cache objectForKey:key];
+        if(!desc) {
+            NSString *selStr = selectorStringFromMethodNameWithUnderscores(name);
+            SEL sel = NSSelectorFromString(selStr);
+            NSMethodSignature *sig = [object methodSignatureForSelector:sel];
+            NSMutableString *typeEncoding = [NSMutableString string];
+            [typeEncoding appendString:[NSString stringWithUTF8String:sig.methodReturnType]];
+            for (NSInteger i = 0; i < sig.numberOfArguments; i++) {
+                [typeEncoding appendString:[NSString stringWithUTF8String:[sig getArgumentTypeAtIndex:i]]];
+            }
+            BOOL isSpecialStructReturn = NO;
+#if !defined(__arm64__)
+            if ([typeEncoding hasPrefix:@"{"]) {
+                //In some cases that returns struct, we should use the '_stret' API:
+                //http://sealiesoftware.com/blog/archive/2008/10/30/objc_explain_objc_msgSend_stret.html
+                //NSMethodSignature knows the detail but has no API to return, we can only get the info from debugDescription.
+                if ([sig.debugDescription rangeOfString:@"is special struct return? YES"].location != NSNotFound) {
+                    isSpecialStructReturn = YES;
+                }
+            }
+#endif
+            desc = [[DynamMethodDesc alloc] init];
+            desc.methodTypeEncoding = typeEncoding;
+            desc.isSpecialStructReturn = isSpecialStructReturn;
+            desc.sel = sel;
+            [cache setObject:desc forKey:key];
+        }
+        return desc;
+    }
+}
+
+const char* methodTypeFromDynamMethodDesc(DynamMethodDesc *desc)
+{
+    @autoreleasepool {
+        return desc.methodTypeEncoding.UTF8String;
+    }
+}
+
+BOOL isSpecialStructReturnFromDynamMethodDesc(DynamMethodDesc *desc)
+{
+    @autoreleasepool {
+        return desc.isSpecialStructReturn;
+    }
+}
+
+SEL selFromDynamMethodDesc(DynamMethodDesc *desc)
+{
+    @autoreleasepool {
+        return desc.sel;
     }
 }

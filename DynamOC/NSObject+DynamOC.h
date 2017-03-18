@@ -14,5 +14,7 @@
 
 + (NSMutableDictionary *)__luaLambdas;
 + (void)__setLuaLambda:(DynamMethod *)lambda forKey:(NSString *)selector;
++ (NSCache *)__classMethodDescCache;
++ (NSCache *)__instanceMethodDescCache;
 
 @end

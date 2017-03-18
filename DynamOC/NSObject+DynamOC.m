@@ -10,6 +10,8 @@
 #import <objc/runtime.h>
 
 static char kLuaLambdasKey;
+static char KClassMethodDescCacheKey;
+static char KInstanceMethodDescCacheKey;
 
 @implementation NSObject (DynamOC)
 
@@ -29,6 +31,26 @@ static char kLuaLambdasKey;
     NSAssert([NSThread isMainThread], @"Add lua method must in main thread!");
     NSMutableDictionary *lambdas = self.__luaLambdas;
     [lambdas setObject:lambda forKey:selector];
+}
+
++ (NSCache *)__classMethodDescCache
+{
+    static NSCache *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cache = [[NSCache alloc] init];
+    });
+    return cache;
+}
+
++ (NSCache *)__instanceMethodDescCache
+{
+    static NSCache *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cache = [[NSCache alloc] init];
+    });
+    return cache;
 }
 
 @end

@@ -102,6 +102,8 @@ ptrdiff_t ivar_getOffset(Ivar ivar);
 SEL sel_registerName(const char *str);
 const char* sel_getName(SEL aSelector);
 
+void CFRelease(id cf);
+
 void free(void *ptr);
 
 // Used to check if a file exists
@@ -109,6 +111,10 @@ int access(const char *path, int amode);
 
 void forward_invocation(id target, SEL selector, id invocation);
 id get_current_luacontext();
+id dynamMethodDescFromMethodNameWithUnderscores(id object, const char *name, BOOL isClass);
+const char* methodTypeFromDynamMethodDesc(id desc);
+BOOL isSpecialStructReturnFromDynamMethodDesc(id desc);
+SEL selFromDynamMethodDesc(id desc);
 enum DynamUpvalueType {
     kDynamUpvalueTypeDouble,
     kDynamUpvalueTypeInteger,
@@ -152,7 +158,8 @@ local function _release(obj)
     if objc.debug then
         _log("Releasing object of class", ffi.string(C.class_getName(obj:class())), ffi.cast("void*", obj), "Refcount: ", obj:retainCount())
     end
-    obj:release()
+    C.CFRelease(obj)
+    --obj:release()
 end
 
 setmetatable(objc, {
@@ -408,6 +415,22 @@ function objc.impForMethod(method)
     return ffi.cast(_impTypeCache[impSignature], C.method_getImplementation(method))
 end
 
+local _impCache = {}
+function objc.impForMethodTypeEncodeing(encoding, isSpecialStructReturn)
+    local imp = _impCache[encoding]
+    if imp == nil then
+        local impSignature = objc.impSignatureForTypeEncoding(encoding)
+        local impType = ffi.typeof(impSignature)
+        if isSpecialStructReturn == 0 then
+            imp = ffi.cast(impType, C.objc_msgSend)
+        else
+            imp = ffi.cast(impType, C.objc_msgSend_stret)
+        end
+        _impCache[encoding] = imp
+    end
+    return imp
+end
+
 -- Convenience functions
 
 function objc.objToStr(aObj) -- Automatically called by tostring(object)
@@ -546,61 +569,26 @@ ffi.metatype("struct objc_class", {
                 selArg = selArg .. ("_"):rep(select("#", ...) - _argCountForSelArg(selArg))
             end
 
-            -- First try the cache
-            local cached = (_classMethodCache[_classNameCache[self]] or _emptyTable)[selArg]
-            if cached ~= nil then
-                return cached(self, ...)
+            local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(ffi.cast(_idType, self), selArg, true)
+            local imp = objc.impForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)), C.isSpecialStructReturnFromDynamMethodDesc(methodDesc))
+            local sel = C.selFromDynamMethodDesc(methodDesc)
+            local success, ret = pcall(imp, ffi.cast(_idType, self), sel, ...)
+            if success == false then
+                error(ret.."\n"..debug.traceback())
             end
 
-            -- Else, load the method
-            local selStr = _selectorFromSelArg(selArg)
-
-            local imp
-            local methodDesc = C.class_getClassMethod(self, SEL(selStr))
-            if methodDesc ~= nil then
-                imp = objc.impForMethod(methodDesc)
-            elseif objc.fallbackOnMsgSend == true then
-                -- TODO
-                imp = C.objc_msgSend
-                if jit.arch ~= "arm64" then
-                    if string.sub(typeEncoding, 1, 1) == "{" then
-                        local signature = self:methodSignatureForSelector(SEL(selStr))
-                        local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
-                        if range.location ~= _INT_MAX then
-                            imp = C.objc_msgSend_stret
-                        end
+            if ffi.istype(_idType, ret) and ret ~= nil then
+                if (selArg:sub(1,5) ~= "alloc" and selArg ~= "new")  then
+                    if objc.debug then
+                        _log("Retaining object of class (sel:"..sel..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
                     end
+                    ret = ret:retain()
                 end
-            else
-                print("[objc] Method "..selStr.." not found")
-                return nil
+                if selArg:sub(1,5) ~= "alloc" then
+                    ret = ffi.gc(ret, _release)
+                end
             end
-
-            -- Cache the calling block and execute it
-            _classNameCache[self] = _classNameCache[self] or ffi.string(C.class_getName(self))
-            local className = _classNameCache[self]
-            _classMethodCache[className] = _classMethodCache[className] or {}
-            _classMethodCache[className][selArg] = function(receiver, ...)
-                local success, ret = pcall(imp, ffi.cast(_idType, receiver), SEL(selStr), ...)
-                if success == false then
-                    error(ret.."\n"..debug.traceback())
-                end
-
-                if ffi.istype(_idType, ret) and ret ~= nil then
-                    _classNameCache[ret] = className
-                    if (selStr:sub(1,5) ~= "alloc" and selStr ~= "new")  then
-                        if objc.debug then
-                            _log("Retaining object of class (sel:"..selStr..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
-                        end
-                        ret = ret:retain()
-                    end
-                    if selStr:sub(1,5) ~= "alloc" then
-                        ret = ffi.gc(ret, _release)
-                    end
-                end
-                return ret
-            end
-            return _classMethodCache[className][selArg](self, ...)
+            return ret
         end
     end,
     __newindex = _setter
@@ -620,57 +608,24 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
             selArg = selArg .. ("_"):rep(select("#", ...) - _argCountForSelArg(selArg))
         end
 
-        local cached = (_instanceMethodCache[_classNameCache[self]] or _emptyTable)[selArg]
-        if cached ~= nil then
-            return cached(self, ...)
+        local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(self, selArg, false)
+        local imp = objc.impForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)), C.isSpecialStructReturnFromDynamMethodDesc(methodDesc))
+        local sel = C.selFromDynamMethodDesc(methodDesc)
+        local success, ret = pcall(imp, self, sel, ...)
+        if success == false then
+            error("Error calling '"..selArg.."': "..ret.."\n"..debug.traceback())
         end
 
-        -- Else, load the method
-        local selStr = _selectorFromSelArg(selArg)
-        local imp
-        local methodDesc = C.class_getInstanceMethod(C.object_getClass(self), SEL(selStr))
-        if methodDesc ~= nil then
-            imp = objc.impForMethod(methodDesc)
-        elseif objc.fallbackOnMsgSend == true then
-            -- TODO
-            imp = C.objc_msgSend
-            if jit.arch ~= "arm64" then
-                if string.sub(typeEncoding, 1, 1) == "{" then
-                    local signature = self:methodSignatureForSelector(SEL(selStr))
-                    local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
-                    if range.location ~= _INT_MAX then
-                        imp = C.objc_msgSend_stret
-                    end
+        if ffi.istype(_idType, ret) and ret ~= nil and not (selArg == "retain" or selArg == "release") then
+            if not (selArg:sub(1,4) == "init" or selArg:sub(1,4) == "copy" or selArg:sub(1,11) == "mutableCopy") then
+                if objc.debug then
+                    _log("Retaining object of class (sel:"..sel..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
                 end
+                ret = ret:retain()
             end
-        else
-            print("[objc] Method "..selStr.." not found")
-            return nil
+            ret = ffi.gc(ret, _release)
         end
-
-        -- Cache the calling block and execute it
-        _classNameCache[self] = _classNameCache[self] or ffi.string(C.object_getClassName(self))
-        local className = _classNameCache[self]
-        _instanceMethodCache[className] = _instanceMethodCache[className] or {}
-        _instanceMethodCache[className][selArg] = function(receiver, ...)
-            local success, ret = pcall(imp, receiver, SEL(selStr), ...)
-            if success == false then
-                error("Error calling '"..selStr.."': "..ret.."\n"..debug.traceback())
-            end
-
-            if ffi.istype(_idType, ret) and ret ~= nil and not (selStr == "retain" or selStr == "release") then
-                _classNameCache[ret] = ffi.string(C.object_getClassName(ret))
-                if not (selStr:sub(1,4) == "init" or selStr:sub(1,4) == "copy" or selStr:sub(1,11) == "mutableCopy") then
-                    if objc.debug then
-                        _log("Retaining object of class (sel:"..selStr..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
-                    end
-                    ret = ret:retain()
-                end
-                ret = ffi.gc(ret, _release)
-            end
-            return ret
-        end
-        return _instanceMethodCache[className][selArg](self, ...)
+        return ret
     end
 end
 
