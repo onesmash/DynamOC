@@ -409,3 +409,24 @@ NSArray<DynamUpvalue *> *dump_block_upvalue(NSInteger blockID)
         return [context dumpLuaBlockUpvalue:blockID];
     }
 }
+
+NSString *selectorStringFromMethodNameWithUnderscores(const char *name)
+{
+    @autoreleasepool {
+        NSInteger len = strlen(name);
+        char selName[len];
+        NSInteger colonIndex = len;
+        for (NSInteger i = len - 1; i >= 0 ; i--) {
+            char c = name[i];
+            selName[i] = c;
+            if(c == '_') {
+                colonIndex = i;
+                continue;
+            }
+            if(colonIndex < len) {
+                selName[colonIndex] = ':';
+            }
+        }
+        return [NSString stringWithUTF8String:selName];
+    }
+}
