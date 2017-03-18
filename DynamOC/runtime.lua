@@ -102,6 +102,7 @@ ptrdiff_t ivar_getOffset(Ivar ivar);
 SEL sel_registerName(const char *str);
 const char* sel_getName(SEL aSelector);
 
+id CFRetain(id cf);
 void CFRelease(id cf);
 
 void free(void *ptr);
@@ -582,7 +583,7 @@ ffi.metatype("struct objc_class", {
                     if objc.debug then
                         _log("Retaining object of class (sel:"..sel..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
                     end
-                    ret = ret:retain()
+                    ret = C.CFRetain(ret)
                 end
                 if selArg:sub(1,5) ~= "alloc" then
                     ret = ffi.gc(ret, _release)
@@ -621,7 +622,7 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
                 if objc.debug then
                     _log("Retaining object of class (sel:"..sel..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
                 end
-                ret = ret:retain()
+                ret = C.CFRetain(ret)
             end
             ret = ffi.gc(ret, _release)
         end
@@ -967,8 +968,8 @@ function setLambdaUpvalues(lambda, upvalues)
     for i = 0, tonumber(upvalues:count()) - 1 do
         local upvalue = upvalues:objectAtIndex(i)
         if upvalue:type() == kDynamUpvalueTypeObject then
-            local value = upvalue:value();
-            value:retain()
+            local value = upvalue:value()
+            C.CFRetain(value)
             ffi.gc(value, _release)
             debug.setupvalue(lambda, tonumber(upvalue:index()), value)
         elseif upvalue:type() == kDynamUpvalueTypeDouble then
