@@ -97,12 +97,15 @@ static void dispose_block(const void *block);
 
 - (NSMethodSignature *)methodSignatureForSelector: (SEL)sel
 {
-    const char *types = self.signature.UTF8String;
-    NSMethodSignature *sig = [NSMethodSignature signatureWithObjCTypes: types];
-    while([sig numberOfArguments] < 2)
-    {
-        types = [[NSString stringWithFormat: @"%s%s", types, @encode(void *)] UTF8String];
+    NSMethodSignature *sig = [super methodSignatureForSelector:sel];
+    if(!sig) {
+        const char *types = self.signature.UTF8String;
         sig = [NSMethodSignature signatureWithObjCTypes: types];
+        while([sig numberOfArguments] < 2)
+        {
+            types = [[NSString stringWithFormat: @"%s%s", types, @encode(void *)] UTF8String];
+            sig = [NSMethodSignature signatureWithObjCTypes: types];
+        }
     }
     return sig;
 }

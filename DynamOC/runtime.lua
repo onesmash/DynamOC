@@ -329,7 +329,7 @@ objc.encode = {["CGFloat"] = CGFloatEncode, ["NSInteger"] = NSIntegerEncode,
                 ["NSUInteger"] = NSUIntegerEncode, ["CGPoint"] = CGPointEncode,
                 ["CGSize"] = CGSizeEncode, ["UIEdgeInsets"] = UIEdgeInsetsEncode,
                 ["id"] = "@", ["void"] = "v", ["block"] = "@",
-                ["SEL"] = ":", ["Class"] = "#" }
+                ["SEL"] = ":", ["Class"] = "#", ["ptr"] = "^" }
 
 -- Takes a type table (contains type info for a single type, obtained using parseTypeEncoding), and converts it to a  c signature
 -- The optional second argument specifies whether or not 
@@ -466,19 +466,19 @@ function objc.NSStr(aStr)
     return objc.NSString:alloc():initWithUTF8String_(ffi.cast("char *", aStr))
 end
 function objc.NSNum(aNum)
-    return objc.NSNumber:numberWithDouble(aNum)
+    return objc.NSNumber:numberWithDouble_(aNum)
 end
 function objc.NSArr(aTable)
     local ret = objc.NSMutableArray:array()
     for i,v in ipairs(aTable) do
-        ret:addObject(objc.Obj(v))
+        ret:addObject_(objc.Obj(v))
     end
     return ret
 end
 function objc.NSDic(aTable)
     local ret = objc.NSMutableDictionary:dictionary()
     for k,v in pairs(aTable) do
-        ret:setObject_forKey(objc.Obj(v), objc.Obj(k))
+        ret:setObject_forKey_(objc.Obj(v), objc.Obj(k))
     end
     return ret
 end
