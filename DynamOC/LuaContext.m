@@ -444,6 +444,11 @@ NSString *selectorStringFromMethodNameWithUnderscores(const char *name)
     }
 }
 
+DynamMethodDesc *dynamMethodDescFromSel(id object, SEL sel, BOOL isClass)
+{
+    
+}
+
 DynamMethodDesc *dynamMethodDescFromMethodNameWithUnderscores(id object, const char *name, BOOL isClass)
 {
     @autoreleasepool {
