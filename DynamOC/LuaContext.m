@@ -197,7 +197,7 @@ static int register_lambda(lua_State *L)
     lua_getglobal(_L, "runtime");
     lua_getfield(_L, -1, "evaluateMethodCode");
     lua_replace(_L, -2);
-    lua_pushlightuserdata(_L, method.codeDump.bytes);
+    lua_pushlightuserdata(_L, (void *)method.codeDump.bytes);
     lua_pushnumber(_L, method.codeDump.length);
     if(lua_pcall(_L, 2, 1, -4)) {
         NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
@@ -442,11 +442,6 @@ NSString *selectorStringFromMethodNameWithUnderscores(const char *name)
         }
         return [NSString stringWithUTF8String:selName];
     }
-}
-
-DynamMethodDesc *dynamMethodDescFromSel(id object, SEL sel, BOOL isClass)
-{
-    
 }
 
 DynamMethodDesc *dynamMethodDescFromMethodNameWithUnderscores(id object, const char *name, BOOL isClass)

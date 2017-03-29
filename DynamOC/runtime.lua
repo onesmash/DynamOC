@@ -49,11 +49,6 @@ struct objc_class { Class isa; };
 struct objc_object { Class isa; };
 typedef struct objc_object *id;
 
-struct objc_super {
-    id receiver;
-    Class super_class;
-};
-
 typedef struct objc_selector *SEL;
 typedef id (*IMP)(id, SEL, ...);
 typedef signed char BOOL;
@@ -67,8 +62,6 @@ typedef struct {
 } objc_property_attribute_t;
 
 id objc_msgSend(id theReceiver, SEL theSelector, ...);
-void objc_msgSend_stret(id self, SEL op, ...);
-id objc_msgSendSuper(struct objc_super *super, SEL op, ...);
 void objc_msgSend_stret(id self, SEL op, ...);
 Class objc_allocateClassPair(Class superclass, const char *name, size_t extraBytes);
 void objc_registerClassPair(Class cls);
@@ -203,7 +196,6 @@ local _impTypeCache = setmetatable({}, {__index=function(t,impSig)
     return t[impSig]
 end})
 local _idType = ffi.typeof("struct objc_object*")
-local _superType = ffi.typeof("struct objc_super*")
 objc.idType = _idType
 local _UINT_MAX
 local _INT_MAX
@@ -413,20 +405,15 @@ function objc.impSignatureForTypeEncoding(signature, name)
     return signature..")"
 end
 
-local _impCache = {}
-function objc.impForMethodTypeEncodeing(encoding, isSpecialStructReturn, super)
-    local imp = _impCache[encoding]
-    if imp == nil then
+local _impTypeCache = {}
+function objc.impTypeForMethodTypeEncodeing(encoding)
+    local impType = _impTypeCache[encoding]
+    if impType == nil then
         local impSignature = objc.impSignatureForTypeEncoding(encoding)
-        local impType = ffi.typeof(impSignature)
-        if isSpecialStructReturn == 0 then
-            imp = ffi.cast(impType, (not super) and C.objc_msgSend or C.objc_msgSendSuper)
-        else
-            imp = ffi.cast(impType, (not super) and C.objc_msgSend_stret or C.objc_msgSendSuper_stret)
-        end
-        _impCache[encoding] = imp
+        impType = ffi.typeof(impSignature)
+        _impTypeCache[encoding] = impType
     end
-    return imp
+    return impType
 end
 
 -- Convenience functions
@@ -537,7 +524,7 @@ end
 local function _getter(self, key)
     local idx = tonumber(key)
     if idx ~= nil then
-        return self:objectAtIndex(idx)
+        return self:objectAtIndex_(idx)
     else
         if C.class_respondsToSelector(C.object_getClass(self), SEL(key)) == 1 then
             return self[key](self)
@@ -568,11 +555,12 @@ ffi.metatype("struct objc_class", {
             end
 
             local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(ffi.cast(_idType, self), selArg, true)
-            local imp = objc.impForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)), C.isSpecialStructReturnFromDynamMethodDesc(methodDesc), false)
+            local impType = objc.impTypeForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)))
+            local imp = C.isSpecialStructReturnFromDynamMethodDesc(methodDesc) == 0 and ffi.cast(impType, C.objc_msgSend) or ffi.cast(impType, C.objc_msgSend_stret)
             local sel = C.selFromDynamMethodDesc(methodDesc)
             local success, ret = pcall(imp, ffi.cast(_idType, self), sel, ...)
             if success == false then
-                error(ret.."\n"..debug.traceback())
+                error("Error calling '"..selArg.."': "..ret.."\n"..debug.traceback())
             end
 
             if ffi.istype(_idType, ret) and ret ~= nil then
@@ -607,7 +595,8 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
         end
 
         local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(self, selArg, false)
-        local imp = objc.impForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)), C.isSpecialStructReturnFromDynamMethodDesc(methodDesc), false)
+        local impType = objc.impTypeForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)))
+        local imp = C.isSpecialStructReturnFromDynamMethodDesc(methodDesc) == 0 and ffi.cast(impType, C.objc_msgSend) or ffi.cast(impType, C.objc_msgSend_stret)
         local sel = C.selFromDynamMethodDesc(methodDesc)
         local success, ret = pcall(imp, self, sel, ...)
         if success == false then
@@ -625,22 +614,6 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
         end
         return ret
     end
-end
-
-function objc.callSuper(self, selArg, ...)
-    if objc.relaxedSyntax == true then
-            -- Append missing underscores to the selector
-        selArg = selArg .. ("_"):rep(select("#", ...) - _argCountForSelArg(selArg))
-    end
-
-    local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(self, selArg, false)
-    local imp = objc.impForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)), C.isSpecialStructReturnFromDynamMethodDesc(methodDesc), false)
-    local sel = C.selFromDynamMethodDesc(methodDesc)
-    local success, ret = pcall(imp, _superType({self, C.class_getSuperclass(C.object_getClass(self))}), sel, ...)
-    if success == false then
-        error("Error calling '"..selArg.."': "..ret.."\n"..debug.traceback())
-    end
-    return ret
 end
 
 ffi.metatype("struct objc_object", {
@@ -724,7 +697,7 @@ function addProperty(class, name, attributes)
                 local ivar, offset, typeEnc, cType = runtime.getIvarInfo(self, ivarName)
                 if ivar then
                     if runtime.ffi.istype(runtime.idType, value) then
-                        runtime.ffi.C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy or value:isKindOfClass(objc.NSBlock))
+                        runtime.ffi.C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy or value:isKindOfClass(runtime.NSBlock))
                     else 
                         local src = runtime.ffi.cast(cType.."*", value)
                         local dst = runtime.ffi.cast(cType.."*", self + offset)
@@ -752,7 +725,7 @@ function addProperty(class, name, attributes)
                 local src = runtime.ffi.cast(cType.."*", self + offset)
                 local dst = runtime.ffi.new(cType.."[1]")
                 local ffiType = runtime.ffi.typeof(cType)
-                runtime.C.objc_copyStruct(dst, src, runtime.ffi.sizeof(ffiType), not nonatomic, false)
+                runtime.ffi.C.objc_copyStruct(dst, src, runtime.ffi.sizeof(ffiType), not nonatomic, false)
                 return dst[0]
             end
         end, attributes["typeEncoding"].."@:")
@@ -765,9 +738,9 @@ function addProperty(class, name, attributes)
     else
         local ivar, offset, typeEnc, cType = _getIvarInfo(self, ivarName)
         if ivar == nil then
-            local typeArr = objc.parseTypeEncoding(attributes["typeEncoding"])
+            local typeArr = runtime.parseTypeEncoding(attributes["typeEncoding"])
             if typeArr ~= nil and #typeArr == 1 then
-                local cType = objc.typeToCType(typeArr[1])
+                local cType = runtime.typeToCType(typeArr[1])
                 if cType ~= nil then
                     local ffiType = ffi.typeof(cType)
                     local size = ffi.sizeof(ffiType)
@@ -812,7 +785,13 @@ end
 function objc.callSuper(self, selector, ...)
     local superClass = C.class_getSuperclass(C.object_getClass(self))
     local method = C.class_getInstanceMethod(superClass, selector)
-    return objc.impForMethod(method)(self, selector, ...)
+    local impType = objc.impTypeForMethodTypeEncodeing(ffi.string(C.method_getTypeEncoding(method)))
+    local imp = ffi.cast(impType, C.method_getImplementation(method))
+    local success, ret = pcall(imp, self, selector, ...)
+    if success == false then
+        error("Error calling super '".. objc.selToStr(selector).."': "..ret.."\n"..debug.traceback())
+    end
+    return ret
 end
 
 -- Swaps two methods of a class (They must have the same type signature)
@@ -979,7 +958,7 @@ end
 
 function setLambdaUpvalues(lambda, upvalues)
     for i = 0, tonumber(upvalues:count()) - 1 do
-        local upvalue = upvalues:objectAtIndex(i)
+        local upvalue = upvalues:objectAtIndex_(i)
         if upvalue:type() == kDynamUpvalueTypeObject then
             local value = upvalue:value()
             C.CFRetain(value)
