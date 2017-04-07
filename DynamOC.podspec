@@ -101,7 +101,7 @@ Pod::Spec.new do |s|
   # s.resources = "Resources/*.png"
 
   s.resource_bundles = {
-    'DynamOC' => ['DynamOC/runtime.lua', 'DynamOC/boot.lua', 'DynamOC/dispatch.lua', 'DynamOC/cocoa.lua']
+    'DynamOC' => ['DynamOC/runtime.lua.raw', 'DynamOC/boot.lua.raw', 'DynamOC/dispatch.lua.raw', 'DynamOC/cocoa.lua.raw']
   }
 
   # s.preserve_paths = "FilesToSave", "MoreFilesToSave"
