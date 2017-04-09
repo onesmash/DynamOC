@@ -145,7 +145,7 @@ static int register_lambda(lua_State *L)
             NSString *scriptDirectory = [[LuaContext dynamOCBundle] resourcePath];
             lua_pushstring(_L, scriptDirectory.UTF8String);
             lua_setglobal(_L, "__scriptDirectory");
-            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot" ofType:@"lua.raw"];
+            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot" ofType:@"luac"];
             lua_getglobal(_L, "debug");
             lua_getfield(_L, -1, "traceback");
             lua_replace(_L, -2);
