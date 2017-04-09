@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   #
 
   s.name         = "DynamOC"
-  s.version      = "0.0.8"
+  s.version      = "0.0.9"
   s.summary      = "A short description of DynamOC"
 
 
