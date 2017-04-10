@@ -7,7 +7,7 @@
 //
 
 #import "DynamBlock.h"
-#import "LuaContext.h"
+#import "LuaContext+Private.h"
 #import <objc/message.h>
 
 enum {

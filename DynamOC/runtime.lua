@@ -869,8 +869,8 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     local msgForwardIMP = C._objc_msgForward
     if jit.arch ~= "arm64" then
         if string.sub(typeEncoding, 1, 1) == "{" then
-            local signature = objc.NSMethodSignature:signatureWithObjCTypes(typeEncoding)
-            local range = signature.debugDescription:rangeOfString_(objc.NSStr("is special struct return? YES"))
+            local signature = objc.NSMethodSignature:signatureWithObjCTypes_(ffi.cast("char *", typeEncoding))
+            local range = signature:debugDescription():rangeOfString_(objc.NSStr("is special struct return? YES"))
             if range.location ~= _INT_MAX then
                 msgForwardIMP = C._objc_msgForward_stret
             end

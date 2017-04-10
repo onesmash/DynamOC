@@ -86,7 +86,7 @@ Pod::Spec.new do |s|
   s.source_files  = "DynamOC", "DynamOC/**/*.{h,m}"
   s.exclude_files = "DynamOC/DynamOC.h"
 
-  s.public_header_files = "DynamOC/LuaContext.h", "DynamOC/NSObject+DynamOC.h" , "DynamOC/DynamBlock.h"
+  s.public_header_files = "DynamOC/LuaContext.h"
 
 
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
@@ -101,7 +101,7 @@ Pod::Spec.new do |s|
   # s.resources = "Resources/*.png"
 
   s.resource_bundles = {
-    'DynamOC' => ['DynamOC/runtime.luac', 'DynamOC/boot.luac', 'DynamOC/dispatch.luac', 'DynamOC/cocoa.luac']
+    'DynamOC' => ['DynamOC/runtime@64.luac', 'DynamOC/boot@64.luac', 'DynamOC/dispatch@64.luac', 'DynamOC/cocoa@64.luac', 'DynamOC/runtime@32.luac', 'DynamOC/boot@32.luac', 'DynamOC/dispatch@32.luac', 'DynamOC/cocoa@32.luac']
   }
 
   # s.preserve_paths = "FilesToSave", "MoreFilesToSave"

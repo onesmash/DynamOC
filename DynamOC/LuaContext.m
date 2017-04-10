@@ -17,6 +17,20 @@
 
 #define kThreadLocalLuaContextKey @"kThreadLocalLuaContextKey"
 
+@class DynamBlock;
+@class DynamUpvalue;
+
+void forward_invocation(id target, SEL selector, id invocation);
+void forward_block_id_invocation(NSInteger blockID, id invocation);
+void forward_block_code_invocation(NSData *code, NSArray<DynamUpvalue *> *upvalues, id invocation);
+LuaContext *get_luacontext(NSThread *thread);
+void push_luacontext(LuaContext *context);
+void pop_luacontext();
+void free_method(NSInteger methodID);
+void free_block(NSInteger blockID);
+NSData *dump_block_code(NSInteger blockID);
+NSArray<DynamUpvalue *> *dump_block_upvalue(NSInteger blockID);
+
 NSInteger kInvalidMethodID = -1;
 
 static int buf_writer( lua_State *L, const void* b, size_t n, void *B ) {
@@ -69,6 +83,8 @@ static int register_lambda(lua_State *L)
     lua_State *_L;
 }
 
+@property (nonatomic, strong) id argumentRegister;
+@property (nonatomic, strong) id returnRegister;
 @property (nonatomic, weak) NSThread *thread;
 @property (nonatomic, strong) NSCache *methodCache;
 
@@ -145,7 +161,11 @@ static int register_lambda(lua_State *L)
             NSString *scriptDirectory = [[LuaContext dynamOCBundle] resourcePath];
             lua_pushstring(_L, scriptDirectory.UTF8String);
             lua_setglobal(_L, "__scriptDirectory");
-            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot" ofType:@"luac"];
+#if defined(__arm64__)
+            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot@64" ofType:@"luac"];
+#else
+            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot@32" ofType:@"luac"];
+#endif
             lua_getglobal(_L, "debug");
             lua_getfield(_L, -1, "traceback");
             lua_replace(_L, -2);
