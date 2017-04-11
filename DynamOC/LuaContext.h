@@ -10,9 +10,8 @@
 
 @interface LuaContext : NSObject
 
++ (LuaContext *)currentContext;
 - (BOOL)evaluateScript:(NSString *)code;
 
 @end
-
-LuaContext *get_current_luacontext();
 

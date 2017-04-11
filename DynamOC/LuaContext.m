@@ -10,6 +10,17 @@
 #import "NSObject+DynamOC.h"
 #import "DynamBlock.h"
 #import "DynamMethod.h"
+#if defined(__arm64__)
+#import "boot64.h"
+#import "runtime64.h"
+#import "cocoa64.h"
+#import "dispatch64.h"
+#else
+#import "boot32.h"
+#import "runtime32.h"
+#import "cocoa32.h"
+#import "dispatch32.h"
+#endif
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -24,6 +35,7 @@ void forward_invocation(id target, SEL selector, id invocation);
 void forward_block_id_invocation(NSInteger blockID, id invocation);
 void forward_block_code_invocation(NSData *code, NSArray<DynamUpvalue *> *upvalues, id invocation);
 LuaContext *get_luacontext(NSThread *thread);
+LuaContext *get_current_luacontext();
 void push_luacontext(LuaContext *context);
 void pop_luacontext();
 void free_method(NSInteger methodID);
@@ -158,19 +170,38 @@ static int register_lambda(lua_State *L)
         _L = luaL_newstate();
         if(_L) {
             luaL_openlibs(_L );
-            NSString *scriptDirectory = [[LuaContext dynamOCBundle] resourcePath];
-            lua_pushstring(_L, scriptDirectory.UTF8String);
-            lua_setglobal(_L, "__scriptDirectory");
+            //NSString *scriptDirectory = [[LuaContext dynamOCBundle] resourcePath];
+            //lua_pushstring(_L, scriptDirectory.UTF8String);
+            //lua_setglobal(_L, "__scriptDirectory");
+            lua_getglobal(_L, "package");
+            lua_getfield(_L, -1, "preload");
 #if defined(__arm64__)
-            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot@64" ofType:@"luac"];
+            //NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot@64" ofType:@"luac"];
+            luaL_loadbuffer(_L, luaJIT_BC_runtime64, luaJIT_BC_runtime64_SIZE, NULL);
+            lua_setfield(_L, -2, "runtime");
+            luaL_loadbuffer(_L, luaJIT_BC_cocoa64, luaJIT_BC_cocoa64_SIZE, NULL);
+            lua_setfield(_L, -2, "cocoa");
+            luaL_loadbuffer(_L, luaJIT_BC_dispatch64, luaJIT_BC_dispatch64_SIZE, NULL);
+            lua_setfield(_L, -2, "dispatch");
+            const char *bootBuffer = luaJIT_BC_boot64;
+            int size = luaJIT_BC_boot64_SIZE;
 #else
-            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot@32" ofType:@"luac"];
+            //NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot@32" ofType:@"luac"];
+            luaL_loadbuffer(_L, luaJIT_BC_runtime32, luaJIT_BC_runtime32_SIZE, NULL);
+            lua_setfield(_L, -2, "runtime");
+            luaL_loadbuffer(_L, luaJIT_BC_cocoa32, luaJIT_BC_cocoa32_SIZE, NULL);
+            lua_setfield(_L, -2, "cocoa");
+            luaL_loadbuffer(_L, luaJIT_BC_dispatch32, luaJIT_BC_dispatch32_SIZE, NULL);
+            lua_setfield(_L, -2, "dispatch");
+            const char *bootBuffer = luaJIT_BC_boot32;
+            int size = luaJIT_BC_boot32_SIZE;
 #endif
+            lua_pop(_L, 2);
             lua_getglobal(_L, "debug");
             lua_getfield(_L, -1, "traceback");
             lua_replace(_L, -2);
             do {
-                if (luaL_loadfile(_L,  bootFilePath.UTF8String) == 0) {
+                if (luaL_loadbuffer(_L, bootBuffer, size, NULL) == 0) {
                     if(lua_pcall(_L, 0, 0, -2)) {
                         NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
                         lua_pop(_L, 2);

@@ -25,6 +25,7 @@ void forward_invocation(id target, SEL selector, id invocation);
 void forward_block_id_invocation(NSInteger blockID, id invocation);
 void forward_block_code_invocation(NSData *code, NSArray<DynamUpvalue *> *upvalues, id invocation);
 LuaContext *get_luacontext(NSThread *thread);
+LuaContext *get_current_luacontext();
 void push_luacontext(LuaContext *context);
 void pop_luacontext();
 void free_method(NSInteger methodID);

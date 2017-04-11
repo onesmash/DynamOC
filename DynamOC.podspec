@@ -100,9 +100,9 @@ Pod::Spec.new do |s|
   # s.resource  = "icon.png"
   # s.resources = "Resources/*.png"
 
-  s.resource_bundles = {
-    'DynamOC' => ['DynamOC/runtime@64.luac', 'DynamOC/boot@64.luac', 'DynamOC/dispatch@64.luac', 'DynamOC/cocoa@64.luac', 'DynamOC/runtime@32.luac', 'DynamOC/boot@32.luac', 'DynamOC/dispatch@32.luac', 'DynamOC/cocoa@32.luac']
-  }
+  #s.resource_bundles = {
+  #  'DynamOC' => ['DynamOC/runtime@64.luac', 'DynamOC/boot@64.luac', 'DynamOC/dispatch@64.luac', 'DynamOC/cocoa@64.luac', 'DynamOC/runtime@32.luac', 'DynamOC/boot@32.luac', 'DynamOC/dispatch@32.luac', 'DynamOC/cocoa@32.luac']
+  #}
 
   # s.preserve_paths = "FilesToSave", "MoreFilesToSave"
 
