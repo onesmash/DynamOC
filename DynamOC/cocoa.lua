@@ -29,6 +29,18 @@ enum UITableViewCellStyle {
 
 void NSLog(id format, ...);
 
+const CGPoint CGPointZero;
+const CGSize CGSizeZero;
+const CGRect CGRectZero;
+CGFloat CGRectGetMinX(CGRect rect);
+CGFloat CGRectGetMidX(CGRect rect);
+CGFloat CGRectGetMaxX(CGRect rect);
+CGFloat CGRectGetMinY(CGRect rect);
+CGFloat CGRectGetMidY(CGRect rect);
+CGFloat CGRectGetMaxY(CGRect rect);
+CGFloat CGRectGetWidth(CGRect rect);
+CGFloat CGRectGetHeight(CGRect rect);
+
 ]]
 
 local lib = ffi.C
@@ -46,5 +58,32 @@ cocoa.UITableViewCellStyleValue2 = ffi.cast(cocoa.UITableViewCellStyle, 2)
 cocoa.UITableViewCellStyleSubtitle = ffi.cast(cocoa.UITableViewCellStyle, 3)
 
 cocoa.NSLog     = lib.NSLog
+cocoa.CGPointZero = lib.CGPointZero
+cocoa.CGSizeZero = lib.CGSizeZero
+cocoa.CGRectZero = lib.CGRectZero
+function cocoa.CGRectGetMinX(rect)
+    return tonumber(lib.CGRectGetMinX(rect))
+end
+function cocoa.CGRectGetMidX(rect)
+    return tonumber(lib.CGRectGetMidX(rect))
+end
+function cocoa.CGRectGetMaxX(rect)
+    return tonumber(lib.CGRectGetMaxX(rect))
+end
+function cocoa.CGRectGetMinY(rect)
+    return tonumber(lib.CGRectGetMinY(rect))
+end
+function cocoa.CGRectGetMidY(rect)
+    return tonumber(lib.CGRectGetMidY(rect))
+end
+function cocoa.CGRectGetMaxY(rect)
+    return tonumber(lib.CGRectGetMaxY(rect))
+end
+function cocoa.CGRectGetWidth(rect)
+    return tonumber(lib.CGRectGetWidth(rect))
+end
+function cocoa.CGRectGetHeight(rect)
+    return tonumber(lib.CGRectGetHeight(rect))
+end
 
 return cocoa

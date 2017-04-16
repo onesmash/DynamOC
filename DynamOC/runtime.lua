@@ -902,7 +902,7 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     local upvalues = objc.NSMutableArray:array()
     dumpLambdaUpvalues(lambda, upvalues)
     local dynamMethod = objc.DynamMethod:alloc():initWithCode_upvalues_(codeData, upvalues)
-    class:__setLuaLambda_forKey_(dynamMethod, objc.Obj(objc.selToStr(selector)))
+    class:____setLuaLambda_forKey_(dynamMethod, objc.Obj(objc.selToStr(selector)))
 
     C.class_replaceMethod(class, selector, msgForwardIMP, typeEncoding)
 end
