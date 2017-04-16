@@ -170,11 +170,12 @@ static int register_lambda(lua_State *L)
         _L = luaL_newstate();
         if(_L) {
             luaL_openlibs(_L );
+            NSString *scriptDirectory = [[NSBundle mainBundle] resourcePath];
             if([LuaContext dynamOCBundle]) {
-                NSString *scriptDirectory = [[LuaContext dynamOCBundle] resourcePath];
-                lua_pushstring(_L, scriptDirectory.UTF8String);
-                lua_setglobal(_L, "__scriptDirectory");
+                scriptDirectory = [[LuaContext dynamOCBundle] resourcePath];
             }
+            lua_pushstring(_L, scriptDirectory.UTF8String);
+            lua_setglobal(_L, "__scriptDirectory");
 #if defined(__arm64__)
             NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot" ofType:@"lua"];
             if(!bootFilePath) {
