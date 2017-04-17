@@ -128,7 +128,7 @@ static int register_lambda(lua_State *L)
 
 + (LuaContext *)contextForThread:(NSThread *)thread
 {
-    [self contextLock].lock;
+    [[self contextLock] lock];
     NSMutableArray<LuaContext *> *contexts = [thread.threadDictionary objectForKey:kThreadLocalLuaContextKey];
     if(!contexts || contexts.count <= 0) {
         contexts = [NSMutableArray array];
@@ -137,28 +137,28 @@ static int register_lambda(lua_State *L)
         [thread.threadDictionary setObject:contexts forKey:kThreadLocalLuaContextKey];
     }
     LuaContext *context = contexts.lastObject;
-    [self contextLock].unlock;
+    [[self contextLock] unlock];
     return context;
 }
 
 + (void)pushContext:(LuaContext *)context
 {
-    [self contextLock].lock;
+    [[self contextLock] lock];
     NSMutableArray<LuaContext *> *contexts = [[NSThread currentThread].threadDictionary objectForKey:kThreadLocalLuaContextKey];
     if(!contexts) {
         contexts = [NSMutableArray array];
         [[NSThread currentThread].threadDictionary setObject:contexts forKey:kThreadLocalLuaContextKey];
     }
     [contexts addObject:context];
-    [self contextLock].unlock;
+    [[self contextLock] unlock];
 }
 
 + (void)popContext
 {
-    [self contextLock].lock;
+    [[self contextLock] lock];
     NSMutableArray<LuaContext *> *contexts = [[NSThread currentThread].threadDictionary objectForKey:kThreadLocalLuaContextKey];
     [contexts removeLastObject];
-    [self contextLock].unlock;
+    [[self contextLock] unlock];
 }
 
 - (instancetype)init
