@@ -10,17 +10,6 @@
 #import "NSObject+DynamOC.h"
 #import "DynamBlock.h"
 #import "DynamMethod.h"
-#if defined(__arm64__)
-#import "boot64.h"
-#import "runtime64.h"
-#import "cocoa64.h"
-#import "dispatch64.h"
-#else
-#import "boot32.h"
-#import "runtime32.h"
-#import "cocoa32.h"
-#import "dispatch32.h"
-#endif
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -176,37 +165,9 @@ static int register_lambda(lua_State *L)
             }
             lua_pushstring(_L, scriptDirectory.UTF8String);
             lua_setglobal(_L, "__scriptDirectory");
-#if defined(__arm64__)
             NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot" ofType:@"lua"];
-            if(!bootFilePath) {
-                lua_getglobal(_L, "package");
-                lua_getfield(_L, -1, "preload");
-                luaL_loadbuffer(_L, luaJIT_BC_runtime64, luaJIT_BC_runtime64_SIZE, NULL);
-                lua_setfield(_L, -2, "runtime");
-                luaL_loadbuffer(_L, luaJIT_BC_cocoa64, luaJIT_BC_cocoa64_SIZE, NULL);
-                lua_setfield(_L, -2, "cocoa");
-                luaL_loadbuffer(_L, luaJIT_BC_dispatch64, luaJIT_BC_dispatch64_SIZE, NULL);
-                lua_setfield(_L, -2, "dispatch");
-                lua_pop(_L, 2);
-            }
-            const char *bootBuffer = !bootFilePath ? luaJIT_BC_boot64 : [NSString stringWithContentsOfFile:bootFilePath encoding:NSUTF8StringEncoding error:0].UTF8String;
-            int size = !bootFilePath ? luaJIT_BC_boot64_SIZE : strlen(bootBuffer);
-#else
-            NSString *bootFilePath = [[LuaContext dynamOCBundle] pathForResource:@"boot" ofType:@"lua"];
-            if(!bootFilePath) {
-                lua_getglobal(_L, "package");
-                lua_getfield(_L, -1, "preload");
-                luaL_loadbuffer(_L, luaJIT_BC_runtime32, luaJIT_BC_runtime32_SIZE, NULL);
-                lua_setfield(_L, -2, "runtime");
-                luaL_loadbuffer(_L, luaJIT_BC_cocoa32, luaJIT_BC_cocoa32_SIZE, NULL);
-                lua_setfield(_L, -2, "cocoa");
-                luaL_loadbuffer(_L, luaJIT_BC_dispatch32, luaJIT_BC_dispatch32_SIZE, NULL);
-                lua_setfield(_L, -2, "dispatch");
-                lua_pop(_L, 2);
-            }
-            const char *bootBuffer = !bootFilePath ? luaJIT_BC_boot32 : [NSString stringWithContentsOfFile:bootFilePath encoding:NSUTF8StringEncoding error:0].UTF8String;
-            int size = !bootFilePath ? luaJIT_BC_boot32_SIZE : strlen(bootBuffer);
-#endif
+            const char *bootBuffer = [NSString stringWithContentsOfFile:bootFilePath encoding:NSUTF8StringEncoding error:0].UTF8String;
+            size_t size = strlen(bootBuffer);
             lua_getglobal(_L, "debug");
             lua_getfield(_L, -1, "traceback");
             lua_replace(_L, -2);
