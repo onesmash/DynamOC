@@ -4,8 +4,7 @@ local jit = require("jit")
 
 local objc = {
     debug = false,
-    relaxedSyntax = true, -- Allows you to omit trailing underscores when calling methods at the expense of some performance.
-    fallbackOnMsgSend = true, -- Calls objc_msgSend if a method implementation is not found (This throws an exception on failure)
+    fallbackOnMsgSend = true,
     frameworkSearchPaths = {
         "/System/Library/Frameworks/%s.framework/%s",
         "/Library/Frameworks/%s.framework/%s",
@@ -160,7 +159,6 @@ local function _release(obj)
         _log("Releasing object of class", ffi.string(C.class_getName(obj:class())), ffi.cast("void*", obj), "Refcount: ", obj:retainCount())
     end
     C.CFRelease(obj)
-    --obj:release()
 end
 
 setmetatable(objc, {
@@ -185,12 +183,10 @@ local SEL=function(str)
 end
 objc.SEL = SEL
 
--- Stores references to IMP(method) wrappers
 local _classMethodCache = {}; objc.classMethodCache = _classMethodCache
 local _instanceMethodCache = {}; objc.instanceMethodCache = _instanceMethodCache
 
 local _classNameCache = setmetatable({}, { __mode = "k" })
--- We cache imp types both for performance, and so we don't fill the ffi type table with duplicates
 local _impTypeCache = setmetatable({}, {__index=function(t,impSig)
     t[impSig] = ffi.typeof(impSig)
     return t[impSig]
@@ -443,10 +439,6 @@ function objc.Obj(v)
     return nil
 end
 function objc.NSStr(aStr)
-    --print(aStr)
-    --local cStr = ffi.new("char[?]", #aStr + 1, 0)
-    --ffi.copy(cStr, aStr, #aStr)
-    --print(ffi.string(cStr))
     return objc.NSString:alloc():initWithUTF8String_(ffi.cast("char *", aStr))
 end
 function objc.NSNum(aNum)
@@ -536,7 +528,6 @@ local function _getter(self, key)
     end
 end
 
-local _emptyTable = {} -- Keep an empty table around so we don't have to create a new one every time a method is called
 ffi.metatype("struct objc_class", {
     __call = function(self)
         error("[objc] Classes are not callable\n"..debug.traceback())
@@ -547,11 +538,6 @@ ffi.metatype("struct objc_class", {
             if self ~= realSelf then
                 error("[objc] Self not passed. You probably used dot instead of colon syntax\n"..debug.traceback())
                 return nil
-            end
-
-            if objc.relaxedSyntax == true then
-                -- Append missing underscores to the selector
-                selArg = selArg .. ("_"):rep(select("#", ...) - _argCountForSelArg(selArg))
             end
 
             local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(ffi.cast(_idType, self), selArg, true)
@@ -586,12 +572,6 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
         if self ~= realSelf then
             error("[objc] Self not passed. You probably used dot instead of colon syntax")
             return nil
-        end
-
-        -- First try the cache
-        if objc.relaxedSyntax == true then
-            -- Append missing underscores to the selector
-            selArg = selArg .. ("_"):rep(select("#", ...) - _argCountForSelArg(selArg))
         end
 
         local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(self, selArg, false)
@@ -896,7 +876,6 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
         C.class_addMethod(class, renamedSel, originalIMP, typeEncoding)
     end
 
-    -- TODO 序列化lambda
     local code = string.dump(lambda)
     local codeData = objc.NSData:dataWithBytes_length_(ffi.cast("void *", code), string.len(code))
     local upvalues = objc.NSMutableArray:array()
