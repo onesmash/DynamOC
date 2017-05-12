@@ -1,10 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = "DynamOC"
-<<<<<<< HEAD
-  s.version      = "0.0.11"
-=======
   s.version      = "0.1.1"
->>>>>>> misc
   s.summary      = "A short description of DynamOC"
   s.homepage     = "https://github.com/onesmash/DynamOC"
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
