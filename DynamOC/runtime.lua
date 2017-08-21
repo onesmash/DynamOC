@@ -69,7 +69,6 @@ void _objc_msgForward_stret(id receiver, SEL sel, ...);
 
 Class objc_getClass(const char *name);
 const char *class_getName(Class cls);
-Method class_getClassMethod(Class aClass, SEL aSelector);
 IMP class_getMethodImplementation(Class cls, SEL name);
 Method class_getInstanceMethod(Class aClass, SEL aSelector);
 Method class_getClassMethod(Class aClass, SEL aSelector);
@@ -671,7 +670,7 @@ function addProperty(class, name, attributes)
         attrs[index].value = setter
         local ivarName = attributes["ivarName"] or "_"..name
         local shouldCopy = attributes["ownerShip"] == "copy"
-        local nonatomic = attributes["nonatomic"] == true 
+        local nonatomic = attributes["nonatomic"] == true
         objc.addMethod(class, SEL(setter), function(self, cmd, value)
             if type(value) == "cdata" then
                 local ivar, offset, typeEnc, cType = runtime.getIvarInfo(self, ivarName)
@@ -870,6 +869,10 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     local originalIMP
     if C.class_respondsToSelector(class, selector) then
         originalIMP = C.class_getMethodImplementation(class, selector)
+        if typeEncoding == nil then
+            local method = C.class_getInstanceMethod(class, selector)
+            typeEncoding = ffi.string(C.method_getTypeEncoding(method))
+        end
     end
     local renamedSel = objc.SEL("__"..objc.selToStr(selector))
     if C.class_respondsToSelector(class, renamedSel) == false then
