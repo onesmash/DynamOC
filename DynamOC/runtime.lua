@@ -50,7 +50,7 @@ typedef struct objc_object *id;
 
 typedef struct objc_selector *SEL;
 typedef id (*IMP)(id, SEL, ...);
-typedef signed char BOOL;
+typedef bool BOOL;
 typedef struct objc_method *Method;
 struct objc_method_description { SEL name; char *types; };
 typedef struct objc_ivar *Ivar;
@@ -501,7 +501,7 @@ end
 local function _setter(self, key, value)
     -- TODO 所有的ivar都是用property实现
     local selector = "set"..key:sub(1,1):upper()..key:sub(2)
-    if C.class_respondsToSelector(C.object_getClass(self), SEL(selector..":")) == 1 then
+    if C.class_respondsToSelector(C.object_getClass(self), SEL(selector..":")) then
         return self[selector](self, value)
     elseif objc.fallbackOnMsgSend == true then
         return self:setValue_forKey_(Obj(value), NSStr(key))
@@ -517,7 +517,7 @@ local function _getter(self, key)
     if idx ~= nil then
         return self:objectAtIndex_(idx)
     else
-        if C.class_respondsToSelector(C.object_getClass(self), SEL(key)) == 1 then
+        if C.class_respondsToSelector(C.object_getClass(self), SEL(key)) then
             return self[key](self)
         elseif objc.fallbackOnMsgSend == true then
             return self:valueForKey_(NSStr(key))
@@ -541,7 +541,7 @@ ffi.metatype("struct objc_class", {
 
             local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(ffi.cast(_idType, self), selArg, true)
             local impType = objc.impTypeForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)))
-            local imp = C.isSpecialStructReturnFromDynamMethodDesc(methodDesc) == 0 and ffi.cast(impType, C.objc_msgSend) or ffi.cast(impType, C.objc_msgSend_stret)
+            local imp = C.isSpecialStructReturnFromDynamMethodDesc(methodDesc) == false and ffi.cast(impType, C.objc_msgSend) or ffi.cast(impType, C.objc_msgSend_stret)
             local sel = C.selFromDynamMethodDesc(methodDesc)
             local success, ret = pcall(imp, ffi.cast(_idType, self), sel, ...)
             if success == false then
@@ -575,7 +575,7 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
 
         local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(self, selArg, false)
         local impType = objc.impTypeForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)))
-        local imp = C.isSpecialStructReturnFromDynamMethodDesc(methodDesc) == 0 and ffi.cast(impType, C.objc_msgSend) or ffi.cast(impType, C.objc_msgSend_stret)
+        local imp = C.isSpecialStructReturnFromDynamMethodDesc(methodDesc) == false and ffi.cast(impType, C.objc_msgSend) or ffi.cast(impType, C.objc_msgSend_stret)
         local sel = C.selFromDynamMethodDesc(methodDesc)
         local success, ret = pcall(imp, self, sel, ...)
         if success == false then
@@ -676,7 +676,7 @@ function addProperty(class, name, attributes)
                 local ivar, offset, typeEnc, cType = runtime.getIvarInfo(self, ivarName)
                 if ivar then
                     if runtime.ffi.istype(runtime.idType, value) then
-                        runtime.ffi.C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy or value:isKindOfClass(runtime.NSBlock))
+                        runtime.ffi.C.objc_setProperty(self, cmd, offset, value, not nonatomic, shouldCopy or value:isKindOfClass_(runtime.NSBlock))
                     else 
                         local src = runtime.ffi.cast(cType.."*", value)
                         local dst = runtime.ffi.cast(cType.."*", self + offset)
@@ -859,7 +859,7 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
     local forwardInvocationSel = objc.SEL("forwardInvocation:")
     local renamedForwardInvocationSel = objc.SEL("__forwardInvocation:")
     if C.class_getMethodImplementation(class, forwardInvocationSel) ~= ffi.cast("IMP", C.forward_invocation) then
-        if C.class_addMethod(class, renamedForwardInvocationSel, ffi.cast("IMP", C.forward_invocation), "v@:@") == 1 then
+        if C.class_addMethod(class, renamedForwardInvocationSel, ffi.cast("IMP", C.forward_invocation), "v@:@") then
             objc.swizzle(class, forwardInvocationSel, renamedForwardInvocationSel)
         else 
             error("Couldn't replace forwardInvocation:")
