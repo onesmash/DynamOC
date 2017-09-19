@@ -573,6 +573,10 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
             return nil
         end
 
+        if self == nil then
+            return nil
+        end
+
         local methodDesc = C.dynamMethodDescFromMethodNameWithUnderscores(self, selArg, false)
         local impType = objc.impTypeForMethodTypeEncodeing(ffi.string(C.methodTypeFromDynamMethodDesc(methodDesc)))
         local imp = C.isSpecialStructReturnFromDynamMethodDesc(methodDesc) == false and ffi.cast(impType, C.objc_msgSend) or ffi.cast(impType, C.objc_msgSend_stret)
@@ -846,6 +850,16 @@ end
 -- Defaults are to return void and to take an object and a selector
 function objc.addMethod(class, selector, lambda, typeEncoding)
     local msgForwardIMP = C._objc_msgForward
+
+    local originalIMP
+    if C.class_respondsToSelector(class, selector) then
+        originalIMP = C.class_getMethodImplementation(class, selector)
+        if typeEncoding == nil then
+            local method = C.class_getInstanceMethod(class, selector)
+            typeEncoding = ffi.string(C.method_getTypeEncoding(method))
+        end
+    end
+
     if jit.arch ~= "arm64" then
         if string.sub(typeEncoding, 1, 1) == "{" then
             local signature = objc.NSMethodSignature:signatureWithObjCTypes_(ffi.cast("char *", typeEncoding))
@@ -866,14 +880,6 @@ function objc.addMethod(class, selector, lambda, typeEncoding)
         end
     end
 
-    local originalIMP
-    if C.class_respondsToSelector(class, selector) then
-        originalIMP = C.class_getMethodImplementation(class, selector)
-        if typeEncoding == nil then
-            local method = C.class_getInstanceMethod(class, selector)
-            typeEncoding = ffi.string(C.method_getTypeEncoding(method))
-        end
-    end
     local renamedSel = objc.SEL("__"..objc.selToStr(selector))
     if C.class_respondsToSelector(class, renamedSel) == false then
         C.class_addMethod(class, renamedSel, originalIMP, typeEncoding)
