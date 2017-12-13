@@ -339,7 +339,7 @@ static int register_lambda(lua_State *L)
 void forward_invocation(NSObject *target, SEL selector, NSInvocation *invocation)
 {
     @autoreleasepool {
-        DynamMethod *method = [[target.class __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(invocation.selector)]];
+        DynamMethod *method = [target.class __findDynamMethod:invocation.selector];
         SEL sel = NSSelectorFromString(@"__forwardInvocation:");
         if(method) {
             LuaContext *context = get_current_luacontext();

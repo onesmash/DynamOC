@@ -12,9 +12,9 @@
 
 @interface NSObject (DynamOC)
 
-+ (NSMutableDictionary *)__luaLambdas;
 + (void)__setLuaLambda:(DynamMethod *)lambda forKey:(NSString *)selector;
 + (NSCache *)__classMethodDescCache;
 + (NSCache *)__instanceMethodDescCache;
++ (DynamMethod *)__findDynamMethod:(SEL)sel;
 
 @end
