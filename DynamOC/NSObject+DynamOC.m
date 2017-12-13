@@ -18,7 +18,13 @@ static char KInstanceMethodDescCacheKey;
 + (DynamMethod *)__findDynamMethod:(SEL)sel
 {
     DynamMethod *method = [[self __luaLambdas] objectForKey:[NSString stringWithUTF8String:sel_getName(sel)]];
-    return method ? : [class_getSuperclass(self) __findDynamMethod:sel];
+    if(!method) {
+        method = [class_getSuperclass(self) __findDynamMethod:sel];
+        if(method) {
+            [self __setLuaLambda:method forKey:[NSString stringWithUTF8String:sel_getName(sel)]];
+        }
+    }
+    return method;
 }
 
 + (NSMutableDictionary *)__luaLambdas
