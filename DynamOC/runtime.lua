@@ -979,7 +979,7 @@ function objc.evaluateBlock(lambda)
     for i = 1, numberOfArguments - 1 do
         local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
         local typeArr = objc.parseTypeEncoding(argumentType)
-        if typeArr ~= nil and #typeArr == 1 then
+        if typeArr ~= nil then
             local cType = objc.typeToCType(typeArr[1])
             if cType ~= nil then
                 cType = cType .. "[1]";
@@ -991,7 +991,7 @@ function objc.evaluateBlock(lambda)
     end
     local returnType = ffi.string(methodSignature:methodReturnType())
     local typeArr = objc.parseTypeEncoding(returnType)
-    if typeArr ~= nil and #typeArr == 1 then
+    if typeArr ~= nil then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
             local ret = lambda(unpack(arguments))
@@ -1014,7 +1014,7 @@ function objc.evaluateBlockCode(codeData, len)
     for i = 1, numberOfArguments - 1 do
         local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
         local typeArr = objc.parseTypeEncoding(argumentType)
-        if typeArr ~= nil and #typeArr == 1 then
+        if typeArr ~= nil then
             local cType = objc.typeToCType(typeArr[1])
             if cType ~= nil then
                 cType = cType .. "[1]";
@@ -1026,7 +1026,7 @@ function objc.evaluateBlockCode(codeData, len)
     end
     local returnType = ffi.string(methodSignature:methodReturnType())
     local typeArr = objc.parseTypeEncoding(returnType)
-    if typeArr ~= nil and #typeArr == 1 then
+    if typeArr ~= nil then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
             local lambda = loadstring(ffi.string(codeData, len))
@@ -1051,7 +1051,7 @@ function objc.evaluateMethodCode(codeData, len)
     for i = 2, numberOfArguments - 1 do
         local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
         local typeArr = objc.parseTypeEncoding(argumentType)
-        if typeArr ~= nil and #typeArr == 1 then
+        if typeArr ~= nil then
             local cType = objc.typeToCType(typeArr[1])
             if cType ~= nil then
                 cType = cType .. "[1]";
@@ -1064,7 +1064,7 @@ function objc.evaluateMethodCode(codeData, len)
     local returnType = ffi.string(methodSignature:methodReturnType())
     local typeArr = objc.parseTypeEncoding(returnType)
     local methodID = C.kInvalidMethodID
-    if typeArr ~= nil and #typeArr == 1 then
+    if typeArr ~= nil then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
             local lambda = loadstring(ffi.string(codeData, len))
@@ -1090,7 +1090,7 @@ function objc.evaluateMethod(lambda)
     for i = 2, numberOfArguments - 1 do
         local argumentType = ffi.string(methodSignature:getArgumentTypeAtIndex_(i))
         local typeArr = objc.parseTypeEncoding(argumentType)
-        if typeArr ~= nil and #typeArr == 1 then
+        if typeArr ~= nil then
             local cType = objc.typeToCType(typeArr[1])
             if cType ~= nil then
                 cType = cType .. "[1]";
@@ -1102,7 +1102,7 @@ function objc.evaluateMethod(lambda)
     end
     local returnType = ffi.string(methodSignature:methodReturnType())
     local typeArr = objc.parseTypeEncoding(returnType)
-    if typeArr ~= nil and #typeArr == 1 then
+    if typeArr ~= nil then
         local cType = objc.typeToCType(typeArr[1])
         if cType ~= nil then
             local ret = lambda(unpack(arguments))
