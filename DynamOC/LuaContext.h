@@ -8,10 +8,17 @@
 
 #import <Foundation/Foundation.h>
 
+#define kDynamOCErrorDomain @"me.onesmash.dynamoc"
+
+typedef enum : NSUInteger {
+    DynamOCErrorCodeLuaCompileError = 1,
+    DynamOCErrorCodeLuaRunError,
+} DynamOCErrorCode;
+
 @interface LuaContext : NSObject
 
 + (LuaContext *)currentContext;
-- (BOOL)evaluateScript:(NSString *)code;
+- (BOOL)evaluateScript:(NSString *)code error:(NSError **)error;
 
 @end
 

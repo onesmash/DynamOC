@@ -192,22 +192,28 @@ static int register_lambda(lua_State *L)
     return self;
 }
 
-- (BOOL)evaluateScript:(NSString *)code
+- (BOOL)evaluateScript:(NSString *)code error:(NSError **)error
 {
-    BOOL ret = YES;
     lua_getglobal(_L, "debug");
     lua_getfield(_L, -1, "traceback");
     lua_replace(_L, -2);
     if(luaL_loadstring(_L, code.UTF8String) == 0) {
         if(lua_pcall(_L, 0, 0, -2)) {
-            NSLog(@"Uncaught Error:  %@", [NSString stringWithUTF8String:lua_tostring(_L, -1)]);
+            NSString *errorInfo = [NSString stringWithUTF8String:lua_tostring(_L, -1)];
+            NSLog(@"Uncaught Error:  %@", errorInfo);
             lua_pop(_L, 2);
+            if(error) {
+                *error = [NSError errorWithDomain:kDynamOCErrorDomain code:DynamOCErrorCodeLuaRunError userInfo:@{NSLocalizedDescriptionKey : errorInfo}];
+            }
             return NO;
         }
         lua_pop(_L, 1);
         return YES;
     }
     lua_pop(_L, 1);
+    if(error) {
+        *error = [NSError errorWithDomain:kDynamOCErrorDomain code:DynamOCErrorCodeLuaCompileError userInfo:@{NSLocalizedDescriptionKey : @"lua compile error"}];
+    }
     return NO;
 }
 
