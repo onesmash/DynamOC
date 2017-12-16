@@ -294,12 +294,12 @@ static int register_lambda(lua_State *L)
 
 - (void)freeLuaMethod:(NSInteger)methodID
 {
-    lua_unref(_L, methodID);
+    luaL_unref(_L, LUA_REGISTRYINDEX, methodID);
 }
 
 - (void)freeLuaBlock:(NSInteger)blockID
 {
-    lua_unref(_L, blockID);
+    luaL_unref(_L, LUA_REGISTRYINDEX, blockID);
 }
 
 - (NSData *)dumpLuaBlockCode:(NSInteger)blockID
