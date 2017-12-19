@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
     'DynamOC' => ['DynamOC/runtime.lua', 'DynamOC/boot.lua', 'DynamOC/dispatch.lua', 'DynamOC/cocoa.lua']
   }
   s.library   = "luajit"
-  s.dependency "LuaJIT", "~> 0.1.1"
+  s.dependency "LuaJIT-DynamOC", "~> 1.0.0"
 
   s.pod_target_xcconfig = {
         'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/LuaJIT/lib'
