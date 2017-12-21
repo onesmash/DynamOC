@@ -107,48 +107,48 @@ static int register_lambda(lua_State *L)
 
 + (void)initialize
 {
-    register_sym(objc_msgSend);
-#if !defined(__arm64__)
-    register_sym(objc_msgSend_stret);
-#endif
-    register_sym(objc_allocateClassPair);
-    register_sym(objc_registerClassPair);
-    register_sym(_objc_msgForward);
-#if !defined(__arm64__)
-    register_sym(_objc_msgForward_stret);
-#endif
-    register_sym(objc_getClass);
-    register_sym(class_getName);
-    register_sym(class_getMethodImplementation);
-    register_sym(class_getInstanceMethod);
-    register_sym(class_getClassMethod);
-    register_sym(class_respondsToSelector);
-    register_sym(class_getSuperclass);
-    register_sym(class_replaceMethod);
-    register_sym(class_addMethod);
-    register_sym(class_addIvar);
-    register_sym(class_addProperty);
-    //register_sym(objc_getProperty);
-    //register_sym(objc_setProperty);
-    //register_sym(objc_copyStruct);
-    register_sym(object_getClass);
-    register_sym(object_getClassName);
-    //register_sym(object_getInstanceVariable);
-    register_sym(method_getName);
-    register_sym(method_getNumberOfArguments);
-    register_sym(method_getReturnType);
-    register_sym(method_getArgumentType);
-    register_sym(method_getImplementation);
-    register_sym(method_getTypeEncoding);
-    register_sym(method_exchangeImplementations);
-    register_sym(ivar_getTypeEncoding);
-    register_sym(ivar_getOffset);
-    register_sym(sel_registerName);
-    register_sym(sel_getName);
-    register_sym(CFRetain);
-    register_sym(CFRelease);
-    register_sym(free);
-    register_sym(access);
+//    register_sym(objc_msgSend);
+//#if !defined(__arm64__)
+//    register_sym(objc_msgSend_stret);
+//#endif
+//    register_sym(objc_allocateClassPair);
+//    register_sym(objc_registerClassPair);
+//    register_sym(_objc_msgForward);
+//#if !defined(__arm64__)
+//    register_sym(_objc_msgForward_stret);
+//#endif
+//    register_sym(objc_getClass);
+//    register_sym(class_getName);
+//    register_sym(class_getMethodImplementation);
+//    register_sym(class_getInstanceMethod);
+//    register_sym(class_getClassMethod);
+//    register_sym(class_respondsToSelector);
+//    register_sym(class_getSuperclass);
+//    register_sym(class_replaceMethod);
+//    register_sym(class_addMethod);
+//    register_sym(class_addIvar);
+//    register_sym(class_addProperty);
+//    //register_sym(objc_getProperty);
+//    //register_sym(objc_setProperty);
+//    //register_sym(objc_copyStruct);
+//    register_sym(object_getClass);
+//    register_sym(object_getClassName);
+//    //register_sym(object_getInstanceVariable);
+//    register_sym(method_getName);
+//    register_sym(method_getNumberOfArguments);
+//    register_sym(method_getReturnType);
+//    register_sym(method_getArgumentType);
+//    register_sym(method_getImplementation);
+//    register_sym(method_getTypeEncoding);
+//    register_sym(method_exchangeImplementations);
+//    register_sym(ivar_getTypeEncoding);
+//    register_sym(ivar_getOffset);
+//    register_sym(sel_registerName);
+//    register_sym(sel_getName);
+//    register_sym(CFRetain);
+//    register_sym(CFRelease);
+//    register_sym(free);
+//    register_sym(access);
     register_sym(forward_invocation);
     register_sym(get_current_luacontext);
     register_sym(dynamMethodDescFromMethodNameWithUnderscores);

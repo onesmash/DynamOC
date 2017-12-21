@@ -897,24 +897,22 @@ end
 
 -- Gets the value of an ivar
 function objc.getIvar(instance, ivarName)
-    -- local ivar, offset, typeEnc, cType  = _getIvarInfo(instance, ivarName)
-    -- if ivar == nil then
-    --     return nil
-    -- end
-    -- local ptr = ffi.cast(cType.."*", instance+offset)
-    -- return ptr[0]
-    return instance:valueForKey_(objc.Obj(ivarName))
+    local ivar, offset, typeEnc, cType  = _getIvarInfo(instance, ivarName)
+    if ivar == nil then
+        return nil
+    end
+    local ptr = ffi.cast(cType.."*", instance+offset)
+    return ptr[0]
 end
 
 -- Sets the value of an ivar
 function objc.setIvar(instance, ivarName, value)
-    -- local ivar, offset, typeEnc, cType  = _getIvarInfo(instance, ivarName)
-    -- if ivar == nil then
-    --     return nil
-    -- end
-    -- local ptr = ffi.cast(cType.."*", instance+offset)
-    -- ptr[0] = value
-    instance:setValue_forKey_(value, objc.Obj(ivarName))
+    local ivar, offset, typeEnc, cType  = _getIvarInfo(instance, ivarName)
+    if ivar == nil then
+        return nil
+    end
+    local ptr = ffi.cast(cType.."*", instance+offset)
+    ptr[0] = value
 end
 
 function objc.weak(obj)
