@@ -165,12 +165,12 @@ static int register_lambda(lua_State *L)
     return bundleURL ? [NSBundle bundleWithURL:bundleURL] : nil;
 }
 
-+ (NSLock *)contextLock
++ (NSRecursiveLock *)contextLock
 {
-    static NSLock *lock;
+    static NSRecursiveLock *lock;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        lock = [[NSLock alloc] init];
+        lock = [[NSRecursiveLock alloc] init];
     });
     return lock;
 }
