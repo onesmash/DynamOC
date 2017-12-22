@@ -935,10 +935,7 @@ end
 
 function objc.createBlock(lambda, typeEncoding)
     local id = objc.registerLambda(lambda)
-    local block = objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
-    block:retain()
-    print(block:retainCount())
-    return block
+    return objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
 end
 
 function objc.dumpBlockUpvalues(lambda)
