@@ -551,7 +551,7 @@ ffi.metatype("struct objc_class", {
             if ffi.istype(_idType, ret) and ret ~= nil then
                 if (selArg:sub(1,5) ~= "alloc" and selArg ~= "new")  then
                     if objc.debug then
-                        _log("Retaining object of class (sel:"..sel..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
+                        _log("Retaining object of class (sel:"..objc.selToStr(sel)..")", ffi.string(C.class_getName(C.object_getClass(ret))), ffi.cast("void*", ret))
                     end
                     ret = C.CFRetain(ret)
                 end
@@ -589,7 +589,7 @@ function objc.getInstanceMethodCaller(realSelf,selArg)
         if ffi.istype(_idType, ret) and ret ~= nil and not (selArg == "retain" or selArg == "release") then
             if not (selArg:sub(1,4) == "init" or selArg:sub(1,4) == "copy" or selArg:sub(1,11) == "mutableCopy") then
                 if objc.debug then
-                    _log("Retaining object of class (sel:"..sel..")", ffi.string(C.class_getName(ret:class())), ffi.cast("void*", ret))
+                    _log("Retaining object of class (sel:"..objc.selToStr(sel)..")", ffi.string(C.class_getName(C.object_getClass(ret))), ffi.cast("void*", ret))
                 end
                 ret = C.CFRetain(ret)
             end
@@ -935,7 +935,10 @@ end
 
 function objc.createBlock(lambda, typeEncoding)
     local id = objc.registerLambda(lambda)
-    return objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
+    local block = objc.DynamBlock:alloc():initWithBlockID_signature_(id, objc.Obj(typeEncoding))
+    block:retain()
+    print(block:retainCount())
+    return block
 end
 
 function objc.dumpBlockUpvalues(lambda)

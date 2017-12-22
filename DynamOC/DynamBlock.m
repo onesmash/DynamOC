@@ -61,7 +61,7 @@ static void dispose_block(const void *block);
             NSMethodSignature *methodSignature = [NSMethodSignature signatureWithObjCTypes:sig.UTF8String];
             if ([methodSignature.debugDescription rangeOfString:@"is special struct return? YES"].location != NSNotFound) {
                 msgForwardIMP = (IMP)_objc_msgForward_stret;
-                flags &= BLOCK_USE_STRET;
+                flags |= BLOCK_USE_STRET;
             }
         }
 #endif
@@ -112,20 +112,24 @@ static void dispose_block(const void *block);
 
 - (void)forwardInvocation:(NSInvocation *)invocation
 {
+    if(flags & BLOCK_NEEDS_FREE) {
+        
+    }
     if(self.copyed) {
         forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
     } else {
         if([[NSThread currentThread] isEqual:self.createThread]) {
             forward_block_id_invocation(self.blockID, invocation);
+            CFRelease((__bridge CFTypeRef)(self));
         } else {
             if(!self.syncDispatch) {
                 [self performSelector:@selector(dumpBlockTo:) onThread:self.createThread withObject:self waitUntilDone:YES];
                 forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
-                CFRelease((__bridge CFTypeRef)(self));
             } else {
                 push_luacontext(get_luacontext(self.createThread));
                 forward_block_id_invocation(self.blockID, invocation);
                 pop_luacontext();
+                CFRelease((__bridge CFTypeRef)(self));
             }
         }
     }
