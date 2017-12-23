@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = "DynamOC"
-  s.version      = "1.1.5"
+  s.version      = "1.1.6"
   s.summary      = "iOS hotfix using lua"
   s.homepage     = "https://github.com/onesmash/DynamOC"
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
