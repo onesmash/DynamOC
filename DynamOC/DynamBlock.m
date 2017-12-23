@@ -119,6 +119,9 @@ static void dispose_block(const void *block);
             forward_block_id_invocation(self.blockID, invocation);
         } else {
             if(!self.syncDispatch) {
+                if(!self.dynamDispatch) {
+                    CFRetain((__bridge CFTypeRef)(self));
+                }
                 [self performSelector:@selector(dumpBlockTo:) onThread:self.createThread withObject:self waitUntilDone:YES];
                 forward_block_code_invocation(self.codeDump, self.upvalueDump, invocation);
                 if(self.dynamDispatch) {
