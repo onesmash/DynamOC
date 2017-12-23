@@ -131,24 +131,16 @@ local C = ffi.C
 objc.C = C
 
 function objc.loadFramework(name, absolute)
-    local canRead = bit.lshift(1,2)
-    -- Check if it's an absolute path
     if absolute then
         local path = name
         local a,b, name = path:find("([^./]+).framework$")
         path = path..name
-        if C.access(path, canRead) == 0 then
-            bs.load(path)
-        end
-        return
+        return return ffi.load(path, true)
     end
 
-    -- Otherwise search
     for i,path in pairs(objc.frameworkSearchPaths) do
         path = path:format(name,name)
-        if C.access(path, canRead) == 0 then
-            return ffi.load(path, true)
-        end
+        return ffi.load(path, true)
     end
     error("Error! Framework '"..name.."' not found.")
 end
