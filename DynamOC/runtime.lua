@@ -6,9 +6,9 @@ local objc = {
     debug = false,
     fallbackOnMsgSend = true,
     frameworkSearchPaths = {
-        "/System/Library/Frameworks/%s.framework/%s",
-        "/Library/Frameworks/%s.framework/%s",
-        "~/Library/Frameworks/%s.framework/%s"
+        "/System/Library/Frameworks/%s.framework",
+        "/Library/Frameworks/%s.framework",
+        "~/Library/Frameworks/%s.framework"
     }
 }
 
@@ -134,13 +134,18 @@ function objc.loadFramework(name, absolute)
     if absolute then
         local path = name
         local a,b, name = path:find("([^./]+).framework$")
-        path = path..name
-        return return ffi.load(path, true)
+        if C.access(path, 0) == 0 then
+            path = path.."/"..name
+            return ffi.load(path, true)
+        end
     end
 
     for i,path in pairs(objc.frameworkSearchPaths) do
-        path = path:format(name,name)
-        return ffi.load(path, true)
+        path = path:format(name)
+        if C.access(path, 0) == 0 then
+            path = path.."/"..name
+            return ffi.load(path, true)
+        end
     end
     error("Error! Framework '"..name.."' not found.")
 end
