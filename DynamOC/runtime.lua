@@ -134,17 +134,29 @@ function objc.loadFramework(name, absolute)
     if absolute then
         local path = name
         local a,b, name = path:find("([^./]+).framework$")
+<<<<<<< HEAD
         if C.access(path, 0) == 0 then
             path = path.."/"..name
             return ffi.load(path, true)
+=======
+        path = path..name
+        if ffi.load(path, true) then
+            return
+>>>>>>> misc
         end
     end
 
     for i,path in pairs(objc.frameworkSearchPaths) do
+<<<<<<< HEAD
         path = path:format(name)
         if C.access(path, 0) == 0 then
             path = path.."/"..name
             return ffi.load(path, true)
+=======
+        path = path:format(name,name)
+        if ffi.load(path, true) then
+            return
+>>>>>>> misc
         end
     end
     error("Error! Framework '"..name.."' not found.")
