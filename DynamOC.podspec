@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = "DynamOC"
-  s.version      = "1.1.7"
+  s.version      = "1.1.8"
   s.summary      = "iOS hotfix using lua"
   s.homepage     = "https://github.com/onesmash/DynamOC"
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
@@ -15,9 +15,5 @@ Pod::Spec.new do |s|
   }
   s.library   = "luajit"
   s.dependency "LuaJIT-DynamOC", "~> 1.0.0"
-
-  s.pod_target_xcconfig = {
-        'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/LuaJIT/lib'
-  }
 
 end
