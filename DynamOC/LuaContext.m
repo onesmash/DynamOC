@@ -11,10 +11,10 @@
 #import "NSObject+DynamOC.h"
 #import "DynamBlock.h"
 #import "DynamMethod.h"
-#include <lua.h>
-#include <lualib.h>
-#include <lauxlib.h>
-#include <dynamoc.h>
+#include "lua.h"
+#include "lualib.h"
+#include "lauxlib.h"
+#include "dynamoc.h"
 #import <objc/message.h>
 #import <objc/runtime.h>
 
