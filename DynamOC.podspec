@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = "DynamOC"
-  s.version      = "1.1.8"
+  s.version      = "1.1.9"
   s.summary      = "iOS hotfix using lua"
   s.homepage     = "https://github.com/onesmash/DynamOC"
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
   s.resource_bundles = {
     'DynamOC' => ['DynamOC/runtime.lua', 'DynamOC/boot.lua', 'DynamOC/dispatch.lua', 'DynamOC/cocoa.lua']
   }
-  s.library   = "luajit"
+  s.libraries   = "luajit", "c++"
   s.dependency "LuaJIT-DynamOC", "~> 1.0.0"
 
 end
