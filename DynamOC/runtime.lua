@@ -1111,4 +1111,8 @@ function objc.evaluateMethod(lambda)
     end
 end
 
+function objc.forceGC()
+    collectgarbage()
+end
+
 return objc;
